@@ -15,7 +15,7 @@ fi
 
 usage() {
   cat <<'EOF'
-Usage: desktop/package-release.sh [platform] [--reuse-portable]
+Usage: desktop/package-release.sh [platform] [--reuse-portable] [--remote-url URL]
 
 Platforms:
   darwin-arm64 darwin-amd64 linux-arm64 linux-amd64
@@ -28,17 +28,37 @@ EOF
 
 plat=""
 reuse_portable=0
-for arg in "$@"; do
-  case "$arg" in
-    --reuse-portable) reuse_portable=1 ;;
-    -h|--help) usage; exit 0 ;;
-    -*) echo "unknown option: $arg" >&2; usage >&2; exit 2 ;;
+remote_url=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --reuse-portable)
+      reuse_portable=1
+      shift
+      ;;
+    --remote-url)
+      if [[ $# -lt 2 || -z "$2" || "$2" == -* ]]; then
+        echo "--remote-url requires a URL" >&2
+        exit 2
+      fi
+      remote_url="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
     *)
       if [[ -n "$plat" ]]; then
         echo "only one platform may be specified" >&2
         exit 2
       fi
-      plat="$arg"
+      plat="$1"
+      shift
       ;;
   esac
 done
@@ -69,6 +89,9 @@ ver="$(octop_version)"
 portable_zip="${REPO_ROOT}/desktop/portable/release/$(portable_zip_basename "$plat")"
 
 echo "[desktop-release] platform=${plat}"
+if [[ -n "$remote_url" ]]; then
+  echo "[desktop-release] compiled remote URL=${remote_url}"
+fi
 echo "[desktop-release] building Dashboard"
 make -C "$REPO_ROOT" build-frontend
 
@@ -104,7 +127,7 @@ PYTHONNOUSERSITE=1 "$portable_python" \
 echo "[desktop-release] packaging Wails application"
 (
   cd "${REPO_ROOT}/desktop/src"
-  wails3 task package "ARCH=${arch}" "PORTABLE_ZIP=${portable_zip}" "VERSION=${ver}"
+  wails3 task package "ARCH=${arch}" "PORTABLE_ZIP=${portable_zip}" "VERSION=${ver}" "REMOTE_URL=${remote_url}"
 )
 
 output="${REPO_ROOT}/desktop/src/bin/$(desktop_pkg_basename "$plat")"

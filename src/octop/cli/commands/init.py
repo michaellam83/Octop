@@ -82,7 +82,6 @@ def init(
     db = open_database(config, paths)
     try:
         run_migrations(db)
-
         username = admin_username
         password = admin_password
         display_name = admin_display_name

@@ -47,6 +47,11 @@ class ResetPasswordBody(BaseModel):
     new_password: str = Field(min_length=1, max_length=200)
 
 
+class ZdxCredentialsBody(BaseModel):
+    api_key: str = Field(min_length=1, max_length=512)
+    userid: str = Field(min_length=1, max_length=128)
+
+
 def _row_to_dict(r: Any, policy: Any | None = None) -> dict[str, Any]:
     now = int(time.time())
     locked_until = int(getattr(r, "login_locked_until", 0) or 0)
@@ -153,7 +158,13 @@ async def list_users(
 ) -> list[dict[str, Any]]:
     rows = server.user_manager.list_all(include_disabled=True)
     policy_map = server.services.user_policy_repo.list_by_user_ids([r.id for r in rows])
-    return [_row_to_dict(r, policy_map.get(r.id)) for r in rows]
+    return [
+        {
+            **_row_to_dict(r, policy_map.get(r.id)),
+            "zdx_configured": server.services.zdx_credentials.get(r.id) is not None,
+        }
+        for r in rows
+    ]
 
 
 @router.post("", status_code=201)
@@ -194,6 +205,63 @@ async def get_user(
     if row is None:
         raise OctopError(ErrorCode.NOT_FOUND, "user not found")
     return _row_to_dict(row, server.services.user_policy_repo.list_for_user(row.id))
+
+
+@router.get("/{user_id}/zdx-credentials")
+async def get_user_zdx_credentials(
+    user_id: int,
+    _: Any = Depends(require_permission("users")),
+    server: Any = Depends(get_server),
+) -> dict[str, Any]:
+    row = server.user_manager.get_row(user_id)
+    if row is None:
+        raise OctopError(ErrorCode.NOT_FOUND, "user not found")
+    credential = server.services.zdx_credentials.get(user_id)
+    return {
+        "configured": credential is not None,
+        "userid": credential.userid if credential is not None else None,
+    }
+
+
+@router.put("/{user_id}/zdx-credentials")
+async def put_user_zdx_credentials(
+    user_id: int,
+    body: ZdxCredentialsBody,
+    _: Any = Depends(require_permission("users")),
+    server: Any = Depends(get_server),
+) -> dict[str, Any]:
+    row = server.user_manager.get_row(user_id)
+    if row is None:
+        raise OctopError(ErrorCode.NOT_FOUND, "user not found")
+    try:
+        credential = server.services.zdx_credentials.save(
+            user_id,
+            api_key=body.api_key,
+            userid=body.userid,
+        )
+    except ValueError as exc:
+        raise OctopError(
+            ErrorCode.CONNECTOR_INVALID_CREDENTIALS,
+            str(exc),
+            status=400,
+        ) from exc
+    if server.app_runtime is not None:
+        await server.app_runtime.agent_registry.refresh_user_runtime_credentials(user_id)
+    return {"configured": True, "userid": credential.userid}
+
+
+@router.delete("/{user_id}/zdx-credentials", status_code=204)
+async def delete_user_zdx_credentials(
+    user_id: int,
+    _: Any = Depends(require_permission("users")),
+    server: Any = Depends(get_server),
+) -> None:
+    row = server.user_manager.get_row(user_id)
+    if row is None:
+        raise OctopError(ErrorCode.NOT_FOUND, "user not found")
+    server.services.zdx_credentials.delete(user_id)
+    if server.app_runtime is not None:
+        await server.app_runtime.agent_registry.refresh_user_runtime_credentials(user_id)
 
 
 @router.patch("/{user_id}")

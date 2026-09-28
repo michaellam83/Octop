@@ -10,7 +10,10 @@ import { apiErrorMessage } from "../../../utils/apiError";
 import { inferAttachmentKind } from "../utils/chatAttachments";
 import { useServerUploadLimit } from "../../../hooks/useServerUploadLimit";
 
-export function useChatAttachments(agentId: string | null | undefined) {
+export function useChatAttachments(
+  agentId: string | null | undefined,
+  enabled = true,
+) {
   const { t } = useTranslation();
   const { maxUploadBytes, maxUploadMb } = useServerUploadLimit();
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
@@ -20,6 +23,8 @@ export function useChatAttachments(agentId: string | null | undefined) {
 
   const processFiles = useCallback(
     async (files: FileList | File[]) => {
+      if (!enabled) return;
+
       const fileArr = Array.from(files).filter((f) => {
         if (f.size > maxUploadBytes) {
           antMessage.error(
@@ -74,12 +79,13 @@ export function useChatAttachments(agentId: string | null | undefined) {
         setUploading(false);
       }
     },
-    [agentId, maxUploadBytes, maxUploadMb, t],
+    [agentId, enabled, maxUploadBytes, maxUploadMb, t],
   );
 
   const handleFileSelect = useCallback(() => {
+    if (!enabled) return;
     fileInputRef.current?.click();
-  }, []);
+  }, [enabled]);
 
   const handleFileChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
@@ -105,6 +111,8 @@ export function useChatAttachments(agentId: string | null | undefined) {
 
   const handlePaste = useCallback(
     (e: ClipboardEvent) => {
+      if (!enabled) return;
+
       const items = e.clipboardData?.items;
       if (!items) return;
       const pastedFiles: File[] = [];
@@ -120,28 +128,45 @@ export function useChatAttachments(agentId: string | null | undefined) {
         void processFiles(pastedFiles);
       }
     },
-    [processFiles],
+    [enabled, processFiles],
   );
 
-  const handleDragEnter = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(true);
-  }, []);
+  const handleDragEnter = useCallback(
+    (e: DragEvent) => {
+      if (!enabled) return;
 
-  const handleDragLeave = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragOver(false);
-  }, []);
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOver(true);
+    },
+    [enabled],
+  );
 
-  const handleDragOver = useCallback((e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
+  const handleDragLeave = useCallback(
+    (e: DragEvent) => {
+      if (!enabled) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOver(false);
+    },
+    [enabled],
+  );
+
+  const handleDragOver = useCallback(
+    (e: DragEvent) => {
+      if (!enabled) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    [enabled],
+  );
 
   const handleDrop = useCallback(
     (e: DragEvent) => {
+      if (!enabled) return;
+
       e.preventDefault();
       e.stopPropagation();
       setDragOver(false);
@@ -149,7 +174,7 @@ export function useChatAttachments(agentId: string | null | undefined) {
         void processFiles(e.dataTransfer.files);
       }
     },
-    [processFiles],
+    [enabled, processFiles],
   );
 
   return {

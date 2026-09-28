@@ -4,6 +4,7 @@ import type { SlashMenuGroup } from "../../../utils/slashCategories";
 
 export type SlashPickerRow = {
   command: string;
+  displayCommand?: string;
   label: string;
   icon: LucideIcon;
   tone: string;
@@ -74,7 +75,9 @@ export default function SlashCommandMenu<T extends SlashPickerRow>({
           </span>
           <span className={labelClassName}>
             <span className={nameClassName}>{item.label}</span>
-            <span className={cmdClassName}>{item.command}</span>
+            <span className={cmdClassName}>
+              {item.displayCommand ?? item.command}
+            </span>
           </span>
         </button>
       );
@@ -97,7 +100,9 @@ export default function SlashCommandMenu<T extends SlashPickerRow>({
           <Icon size={iconSize} />
           <span>{item.label}</span>
         </span>
-        <span className={cmdClassName}>{item.command}</span>
+        <span className={cmdClassName}>
+          {item.displayCommand ?? item.command}
+        </span>
       </button>
     );
   };

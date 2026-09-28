@@ -42,6 +42,7 @@ export const NAV_PERMISSIONS = {
   models: PERM.modelsPage,
   "admin-storage": PERM.storage,
   "admin-plugins": PERM.plugins,
+  "admin-managed-experts": "admin",
   "admin-security": PERM.securityPage,
   "admin-advanced": PERM.advancedPage,
 } as const satisfies Record<string, PermissionKeys>;
@@ -156,6 +157,14 @@ export function pathPermissionKeys(pathname: string): PermissionKeys | null {
     return PERM.advancedPage;
   }
   if (pathname.startsWith("/admin/")) {
+    return "admin";
+  }
+  if (
+    pathname === "/tasks" ||
+    pathname === "/cron-jobs" ||
+    pathname === "/orca/cron" ||
+    pathname === "/octop/cron"
+  ) {
     return "admin";
   }
   if (

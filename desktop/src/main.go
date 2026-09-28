@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,10 @@ import (
 var assets embed.FS
 
 const trayDoubleClick = 400 * time.Millisecond
+
+// defaultRemoteURL is injected by release builds when the desktop package is
+// intended to connect to a shared server. Empty means local portable mode.
+var defaultRemoteURL string
 
 // App is the Wails service bound to the shell UI.
 type App struct {
@@ -156,12 +161,19 @@ func (a *App) setStatus(msg string) {
 	a.app.Event.Emit("desktop:status", msg)
 }
 
+func configuredDesktopURL() string {
+	if url := strings.TrimSpace(os.Getenv("OCTOP_DESKTOP_URL")); url != "" {
+		return url
+	}
+	return strings.TrimSpace(defaultRemoteURL)
+}
+
 func (a *App) boot() {
 	locale := LocaleEN
 	if a.store != nil {
 		locale = a.store.get().Locale
 	}
-	if url := os.Getenv("OCTOP_DESKTOP_URL"); url != "" {
+	if url := configuredDesktopURL(); url != "" {
 		a.setStatus(desktopText(locale, copyStatusConnecting))
 		if err := waitHealth(locale, url, 60*time.Second); err != nil {
 			a.setStatus(err.Error())
@@ -294,8 +306,8 @@ func main() {
 	}
 
 	app := application.New(application.Options{
-		Name:        "Octop",
-		Description: "Octop desktop",
+		Name:        "AllinpayAI",
+		Description: "AllinpayAI desktop",
 		Services: []application.Service{
 			application.NewService(api),
 		},
@@ -319,7 +331,7 @@ func main() {
 	})
 
 	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:                "Octop",
+		Title:                "AllinpayAI",
 		Width:                1200,
 		Height:               800,
 		URL:                  "/",
@@ -342,7 +354,7 @@ func main() {
 	win.OnWindowEvent(events.Windows.WebViewNavigationCompleted, installDragOverlay)
 	win.OnWindowEvent(events.Linux.WindowLoadFinished, installDragOverlay)
 	settingsWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "Octop 设置",
+		Title:            "AllinpayAI 设置",
 		Width:            settingsWindowWidth,
 		Height:           settingsWindowOuterHeight(),
 		URL:              "/?settings=1",
@@ -386,7 +398,7 @@ func main() {
 
 	tray := app.SystemTray.New()
 	applyTrayIcon(tray)
-	tray.SetTooltip("Octop")
+	tray.SetTooltip("AllinpayAI")
 	tray.AttachWindow(settingsWin).WindowOffset(6)
 	showSettings := func() { tray.ShowWindow() }
 	if trayLeftClickShowsSettings(runtime.GOOS) {

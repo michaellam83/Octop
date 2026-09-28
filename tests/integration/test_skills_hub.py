@@ -144,10 +144,11 @@ async def test_hub_install_unknown_skill(env: Any) -> None:
         headers=auth,
         json={"skill_name": "nonexistent-xyz-skill-abc123", "enable": True},
     )
+    # 403 direct managed runtime does not support Harness skills;
     # 400 bad name; 404 skill/agent not found; 409 agent not running;
     # 500 agent failed to start (no models in bare setup); 502/504 CLI/network.
     assert r.status_code != 200, f"Expected non-200, got {r.status_code}"
-    assert r.status_code in (400, 404, 409, 500, 502, 504), (
+    assert r.status_code in (400, 403, 404, 409, 500, 502, 504), (
         f"Unexpected status {r.status_code}: {r.text}"
     )
 

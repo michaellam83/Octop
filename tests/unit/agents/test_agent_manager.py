@@ -15,6 +15,7 @@ import pytest
 from octop.config import OctopConfig
 from octop.i18n.domains.agents import NO_MODELS_CONFIGURED, format_agent_start_error
 from octop.infra.agents.experts.catalog import default_library_root
+from octop.infra.agents.managed_runtime import MANAGED_ZDX_TYPE
 from octop.infra.agents.manager import AgentManager, _memory_extract_settings
 from octop.infra.backend.resolver import default_agent_backend_spec
 from octop.infra.db.migrate import run_migrations
@@ -67,6 +68,31 @@ def _seed_test_provider(manager: AgentManager) -> None:
             [{"id": "gpt-4o-mini", "name": "gpt-4o-mini", "enabled": True}],
         ),
     )
+
+
+def test_get_utility_model_for_direct_managed_agent_uses_public_shared_factory(
+    manager: AgentManager,
+) -> None:
+    _seed_test_provider(manager)
+    manager._repos.agent_repo.create(
+        agent_id="managed-agent",
+        user_id=None,
+        name="managed",
+        managed_type=MANAGED_ZDX_TYPE,
+    )
+
+    shared_factory = MagicMock()
+    shared_factory.get.return_value = object()
+    manager._harness_manager = MagicMock(shared_factory=shared_factory)
+
+    model, model_ref = manager.get_utility_model(
+        "managed-agent",
+        "tonglian-zdx/private-model",
+    )
+
+    assert model_ref == "test-openai/gpt-4o-mini"
+    assert model is shared_factory.get.return_value
+    shared_factory.get.assert_called_once_with("test-openai/gpt-4o-mini")
 
 
 def _row(

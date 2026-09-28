@@ -108,6 +108,26 @@ async def test_register_qq_invoke_when_c2c_streaming_is_off(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
+async def test_register_managed_zdx_qq_uses_static_delivery(tmp_path: Path) -> None:
+    gw = _make_gateway(tmp_path)
+    gw._channel_manager = MagicMock()
+    gw._channel_manager.add_channel = AsyncMock()
+    gw._channel_manager.get_channel = MagicMock(return_value=MagicMock())
+    gw._processor = MagicMock()
+    gw._agent_manager.get_row = MagicMock(return_value=MagicMock(managed_type="tonglian_fazai"))
+    row = _fake_row()
+    row.kind = "qq"
+    row.config_json = '{"app_id":"x","secret":"y","c2c_streaming":true}'
+
+    await gw._register_channel(row)
+
+    assert gw._channel_manager.add_channel.await_args is not None
+    call = gw._channel_manager.add_channel.await_args
+    assert call.kwargs["processor"] is not gw._processor
+    assert call.args[1]["c2c_streaming"] is False
+
+
+@pytest.mark.asyncio
 async def test_register_failure_sets_runtime_error(tmp_path: Path) -> None:
     gw = _make_gateway(tmp_path)
     gw._channel_manager = MagicMock()

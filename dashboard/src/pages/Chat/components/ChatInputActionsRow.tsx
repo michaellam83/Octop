@@ -81,6 +81,8 @@ interface ChatInputActionsRowProps {
   browserRecording?: boolean;
   browserReplayBusy?: boolean;
   browserLastRecordingId?: string | null;
+  supportsShortcuts?: boolean;
+  supportsAttachments?: boolean;
   onStartBrowserRecording?: () => void;
   onStopBrowserRecording?: () => void;
   onReplayBrowserRecording?: () => void;
@@ -138,6 +140,8 @@ export default function ChatInputActionsRow({
   browserRecording = false,
   browserReplayBusy = false,
   browserLastRecordingId = null,
+  supportsShortcuts = true,
+  supportsAttachments = true,
   onStartBrowserRecording,
   onStopBrowserRecording,
   onReplayBrowserRecording,
@@ -256,7 +260,7 @@ export default function ChatInputActionsRow({
     [availableSkills, skillDisplayName],
   );
   const activeSkillSlugs = parseSkillSlugsInText(text, skillTokenRefs);
-  const showShortcutPicker = true;
+  const showShortcutPicker = supportsShortcuts;
   const showOverflowMenu =
     showConnectorPicker ||
     showKnowledgePicker ||
@@ -1085,36 +1089,40 @@ export default function ChatInputActionsRow({
             </Tooltip>
           </Popover>
         )}
-        <Popover
-          trigger="click"
-          placement="topLeft"
-          open={shortcutOpen}
-          onOpenChange={setShortcutOpen}
-          overlayClassName={styles.skillPickerPopover}
-          content={shortcutMenu}
-        >
+        {showShortcutPicker && (
+          <Popover
+            trigger="click"
+            placement="topLeft"
+            open={shortcutOpen}
+            onOpenChange={setShortcutOpen}
+            overlayClassName={styles.skillPickerPopover}
+            content={shortcutMenu}
+          >
+            <Tooltip
+              title={t("shortcut.title", "快捷指令")}
+              mouseEnterDelay={0.4}
+            >
+              <button className={styles.secondaryBtn} type="button">
+                <Zap size={16} />
+              </button>
+            </Tooltip>
+          </Popover>
+        )}
+        {supportsAttachments && (
           <Tooltip
-            title={t("shortcut.title", "快捷指令")}
+            title={t("upload.fileTooltip", "Upload attachment")}
             mouseEnterDelay={0.4}
           >
-            <button className={styles.secondaryBtn} type="button">
-              <Zap size={16} />
+            <button
+              className={styles.secondaryBtn}
+              onClick={onFileSelect}
+              type="button"
+              disabled={uploading}
+            >
+              <Paperclip size={16} />
             </button>
           </Tooltip>
-        </Popover>
-        <Tooltip
-          title={t("upload.fileTooltip", "Upload attachment")}
-          mouseEnterDelay={0.4}
-        >
-          <button
-            className={styles.secondaryBtn}
-            onClick={onFileSelect}
-            type="button"
-            disabled={uploading}
-          >
-            <Paperclip size={16} />
-          </button>
-        </Tooltip>
+        )}
       </>
     );
   };

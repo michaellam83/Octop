@@ -31,6 +31,7 @@ import { useWorkspaceFileMention } from "./useWorkspaceFileMention";
 
 export type SlashMenuItem = {
   command: string;
+  displayCommand?: string;
   label: string;
   icon: ReturnType<typeof resolveSlashIcon>;
   tone: string;
@@ -158,7 +159,8 @@ export function useSlashMentionInput({
 
   const slashMenuItems = useMemo<SlashMenuItem[]>(() => {
     const commands = slashCommands.map((spec) => ({
-      command: spec.usage || `/${spec.name}`,
+      command: spec.command || `/${spec.name}`,
+      displayCommand: spec.usage || spec.command || `/${spec.name}`,
       label: labelFor(spec),
       icon: resolveSlashIcon(spec.icon),
       tone: spec.tone,
@@ -176,6 +178,7 @@ export function useSlashMentionInput({
         return {
           // Composer + menu show emoji + friendly label; wire ``/slug`` on send.
           command: token,
+          displayCommand: `${token} <task>`,
           label,
           icon: resolveSlashIcon("Sparkles"),
           tone: "violet",

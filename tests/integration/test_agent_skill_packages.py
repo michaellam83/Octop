@@ -150,3 +150,31 @@ async def test_package_only_skill_rejects_push_until_copied(env_with_agent: Any)
     )
     assert pushed.status_code == 200, pushed.text
     assert pushed.json() == {"package_id": target_id, "slug": "pdf-reader"}
+
+
+async def test_managed_direct_model_rejects_skill_package_operations(env: Any) -> None:
+    client, _server, auth = env
+    package_id = await _create_package_with_skill(client, auth)
+    agents = (await client.get("/api/agents", headers=auth)).json()
+    managed = next(agent for agent in agents if agent.get("managed_type") == "tonglian_fazai")
+    agent_id = managed["agent_id"]
+
+    listed = await client.get(f"/api/agents/{agent_id}/skill-packages", headers=auth)
+    assert listed.status_code == 403, listed.text
+    assert listed.json()["error"]["code"] == "FORBIDDEN"
+
+    replaced = await client.put(
+        f"/api/agents/{agent_id}/skill-packages",
+        headers=auth,
+        json={"package_ids": [package_id]},
+    )
+    assert replaced.status_code == 403, replaced.text
+    assert replaced.json()["error"]["code"] == "FORBIDDEN"
+
+    copied = await client.post(
+        f"/api/agents/{agent_id}/skill-packages/{package_id}/copy",
+        headers=auth,
+        json={"skill_slugs": ["pdf-reader"]},
+    )
+    assert copied.status_code == 403, copied.text
+    assert copied.json()["error"]["code"] == "FORBIDDEN"

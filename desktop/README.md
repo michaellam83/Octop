@@ -40,6 +40,8 @@ the final native package:
 desktop/package-release.sh
 # Reuse an existing desktop/portable/release/Octop-portable-<plat>-<version>.zip:
 desktop/package-release.sh darwin-arm64 --reuse-portable
+# Compile a shared-server URL into a native package:
+desktop/package-release.sh darwin-arm64 --remote-url http://10.40.47.5:8088
 ```
 
 Wails requires native packaging, so all six variants are produced by the CI
@@ -69,6 +71,13 @@ cd desktop/src
 OCTOP_DESKTOP_URL=http://127.0.0.1:8088 wails3 dev
 ```
 
+For a package intended to connect directly to a shared test server, pass
+`--remote-url URL` to `package-release.sh`, or use the `remote_url` input in
+the `Octop Desktop Package` GitHub Actions workflow. The URL is compiled into
+the desktop executable, so a user can launch `AllinpayAI.exe` directly without
+a wrapper script. `OCTOP_DESKTOP_URL` still overrides the compiled URL at
+runtime; an empty compiled URL keeps the normal local portable mode.
+
 Without `OCTOP_DESKTOP_URL`, first launch uses `~/.octop/portable/` if valid,
 otherwise extracts the matching zip shipped with the desktop package (embedded
 in the Windows and Linux binaries, under `Contents/Resources` on macOS). The
@@ -80,11 +89,12 @@ The upgraded Octop process then applies the normal database migrations during
 startup. Newer extracted runtimes are never downgraded; PostgreSQL remains
 externally managed and is not copied by the desktop shell.
 
-GitHub Release names follow `Octop-<kind>-<os>-<arch>-<version>.<ext>`:
+GitHub Release names use `AllinpayAI` for desktop packages and keep `Octop` for
+the internal portable runtime packages:
 
-- Desktop GUI: `Octop-desktop-<plat>-<version>.dmg` (macOS; open and drag
-  `Octop.app` into Applications), `.exe` (Windows NSIS installer — copies
-  into `Program Files\Octop` and creates Start Menu + desktop shortcuts),
+- Desktop GUI: `AllinpayAI-desktop-<plat>-<version>.dmg` (macOS; open and drag
+  `AllinpayAI.app` into Applications), `.exe` (Windows NSIS installer — copies
+  into `Program Files\AllinpayAI` and creates Start Menu + desktop shortcuts),
   `.tar.gz` (Linux)
 - Green runtime zip: `Octop-portable-<plat>-<version>.zip`
 - PyPI wheels stay `octop-<version>-py3-none-any.whl` (PEP 427)

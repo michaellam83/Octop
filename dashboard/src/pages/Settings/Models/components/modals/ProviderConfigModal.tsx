@@ -654,12 +654,31 @@ export function ProviderConfigModal({
         payload.api_key = values.api_key.trim();
       if ((values.note ?? "") !== (provider.note ?? ""))
         payload.note = values.note?.trim() || null;
-      // default model
-      const existingDefault = provider.models?.length
-        ? provider.models[0].id
-        : "";
-      if ((values.model ?? "") !== existingDefault)
-        payload.model = values.model?.trim() || null;
+
+      // The model field is also a convenient way to add a provider model. A
+      // previous implementation only sent it as an unsupported PATCH field,
+      // so a provider could still be saved with an empty model catalog.
+      const selectedModel = (values.model ?? "").trim();
+      let modelsToSave = draftModels;
+      if (selectedModel) {
+        const hasModel = draftModels.some(
+          (model) => model.id === selectedModel,
+        );
+        modelsToSave = hasModel
+          ? draftModels.map((model) =>
+              model.id === selectedModel ? { ...model, enabled: true } : model,
+            )
+          : [
+              ...draftModels,
+              {
+                id: selectedModel,
+                name: selectedModel,
+                enabled: true,
+                input: ["text"],
+                thinking: null,
+              },
+            ];
+      }
 
       const modelsChanged =
         JSON.stringify(
@@ -667,9 +686,9 @@ export function ProviderConfigModal({
             ...m,
             enabled: m.enabled !== false,
           })),
-        ) !== JSON.stringify(draftModels);
+        ) !== JSON.stringify(modelsToSave);
       if (modelsChanged) {
-        payload.models = draftModels;
+        payload.models = modelsToSave;
       }
 
       if (Object.keys(payload).length === 0) {

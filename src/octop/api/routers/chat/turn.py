@@ -18,6 +18,7 @@ from harness_gateway.models import (
 from octop.api.common.agent import require_agent_row
 from octop.api.common.validators import validate_chat_mcp_servers, validate_chat_skills
 from octop.api.routers.chat.models import ChatTurnBody
+from octop.infra.agents.managed_runtime import capabilities_for_row
 from octop.infra.errors import ErrorCode, OctopError
 from octop.infra.gateway.media.attachment_hints import (
     inbound_attachments_from_parts,
@@ -55,6 +56,7 @@ class PreparedDashboardTurn:
     inbound_content: list[ContentPart]
     composer_context: dict[str, Any] | None
     inbound_attachments: list[dict[str, str]]
+    knowledge_base_ids: list[str] | None = None
 
 
 async def resolve_thread_id(
@@ -234,13 +236,21 @@ async def prepare_dashboard_turn(
     row = require_agent_row(agent_id, user=user, as_user=None, server=server)
     default_model = (row.default_model or "").strip() or None
 
-    mcp_servers = await validate_chat_mcp_servers(server, user_id=user.id, names=turn.mcp_servers)
-    skills = await validate_chat_skills(
-        server,
-        agent_id=agent_id,
-        user=user,
-        names=turn.skills,
-    )
+    capabilities = capabilities_for_row(row)
+    if not capabilities.supports_connectors:
+        mcp_servers = None
+        skills = None
+    else:
+        mcp_servers = await validate_chat_mcp_servers(
+            server, user_id=user.id, names=turn.mcp_servers
+        )
+        skills = await validate_chat_skills(
+            server,
+            agent_id=agent_id,
+            user=user,
+            names=turn.skills,
+        )
+
     if mcp_servers:
         failed = await server.app_runtime.agent_registry.prepare_chat_mcp(
             agent_id,
@@ -263,7 +273,11 @@ async def prepare_dashboard_turn(
         thread_id=turn.thread_id,
         session_key=turn.session_key,
     )
-    model_ref = (turn.default_model or "").strip() or None
+    model_ref = (
+        None
+        if not capabilities.supports_model_override
+        else (turn.default_model or "").strip() or None
+    )
     if (
         model_ref is not None
         and not server.app_runtime.agent_registry.providers.is_model_ref_usable(model_ref)
@@ -291,6 +305,11 @@ async def prepare_dashboard_turn(
     )
     inbound_content = content_parts_from_dashboard_turn(turn)
     inbound_attachments = inbound_attachments_from_parts(inbound_content)
+    knowledge_base_ids = (
+        list(turn.knowledge_base_ids)
+        if capabilities.supports_knowledge_bases and turn.knowledge_base_ids is not None
+        else None
+    )
     return PreparedDashboardTurn(
         thread_id=thread_id,
         session_key=session_key,
@@ -300,6 +319,7 @@ async def prepare_dashboard_turn(
         inbound_content=inbound_content,
         composer_context=composer_ctx,
         inbound_attachments=inbound_attachments,
+        knowledge_base_ids=knowledge_base_ids,
     )
 
 
@@ -321,9 +341,9 @@ def build_dashboard_inbound(
     if prepared.mcp_servers is not None:
         # Including [] — Dashboard opt-out of default_open for this turn.
         metadata["mcp_servers"] = list(prepared.mcp_servers)
-    if turn.knowledge_base_ids is not None:
+    if prepared.knowledge_base_ids is not None:
         # Including [] — Dashboard opt-out of default_open knowledge bases for this turn.
-        metadata["knowledge_base_ids"] = list(turn.knowledge_base_ids)
+        metadata["knowledge_base_ids"] = list(prepared.knowledge_base_ids)
     if prepared.skills is not None:
         metadata["skills"] = prepared.skills
     if prepared.model_ref:

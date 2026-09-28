@@ -1,6 +1,6 @@
 {
   "app": {
-    "pageTitle": "Octop - An intelligent partner that understands you, helps you, and grows with you"
+    "pageTitle": "通联AI"
   },
   "layout": {
     "collapsePanel": "Collapse panel",
@@ -226,6 +226,7 @@
     "adminAdvanced": "Application Settings",
     "security": "Security",
     "adminPlugins": "Plugins",
+    "adminManagedExperts": "Managed templates",
     "skillPackages": "Skill Packages",
     "knowledgeBases": "Knowledge Bases",
     "remoteAndroid": "Remote Phone",
@@ -723,6 +724,7 @@
     "mbtiViewDetail": "Click to view personality details",
     "agentId": "Expert ID",
     "copyAgentId": "Click to copy expert ID",
+    "managedAgent": "System-managed",
     "table": {
       "name": "Name",
       "agentId": "Expert ID",
@@ -2947,6 +2949,7 @@
     "testFailedSimple": "Test failed",
     "testPingHint": "Send a single ping using the saved configuration.",
     "testDraftNeedModel": "Add or select at least one model before testing.",
+    "providerNeedModel": "Add at least one enabled chat model before saving this provider.",
     "codexOAuthLogin": "Sign in with ChatGPT",
     "codexOAuthHint": "Use ChatGPT subscription OAuth instead of an API key. An openai-codex provider is created automatically after login.",
     "codexOAuthSuccess": "ChatGPT login succeeded; the model provider is configured.",
@@ -4698,6 +4701,7 @@
     "statusDisabled": "Disabled",
     "ssoBadge": "SSO",
     "passwordBadge": "Password",
+    "zdxConfigured": "ZDX configured",
     "tabLocal": "Local users",
     "tabFeishu": "Feishu Login",
     "tabWecom": "WeCom Login",
@@ -4718,6 +4722,22 @@
     "createSectionPolicy": "Resource usage policy",
     "policyWorkspaceRoot": "Allowed storage root",
     "policyWorkspaceRootHint": "Restricts roots for “{{localShell}}” and “{{filesystem}}” when creating experts. Off means no extra limit.",
+    "zdxConfigure": "Configure ZDX credentials",
+    "zdxModalTitle": "Configure ZDX credentials for {{username}}",
+    "zdxCredentialHint": "The API key is encrypted at rest and never shown again.",
+    "zdxApiKey": "ZDX API key",
+    "zdxApiKeyRequired": "Enter the ZDX API key",
+    "zdxApiKeyKeepHint": "Enter the key again to replace it",
+    "zdxUserid": "OA username",
+    "zdxUseridHint": "Use the real OA username bound to this ZDX account.",
+    "zdxUseridRequired": "Enter the OA username",
+    "zdxSave": "Save credentials",
+    "zdxClear": "Clear credentials",
+    "zdxLoadFailed": "Failed to load ZDX credential status",
+    "zdxSaveSuccess": "ZDX credentials saved",
+    "zdxSaveFailed": "Failed to save ZDX credentials",
+    "zdxClearSuccess": "ZDX credentials cleared",
+    "zdxClearFailed": "Failed to clear ZDX credentials",
     "policyWorkspaceRootRequired": "Choose an allowed storage root",
     "policyWorkspaceRootContainerHint": "Not available in container deployments — the container filesystem is already the isolation boundary, and new experts default to `/`.",
     "policyTokenQuota": "Token usage limit",
@@ -5356,6 +5376,10 @@
       "title": "Plugin Management",
       "subtitle": "Install and manage server plugins; configure each agent under Personalization → Plugins"
     },
+    "managedExperts": {
+      "title": "Managed Expert Templates",
+      "subtitle": "Edit and publish the default Tonglian Fazai template for all users"
+    },
     "adminUpdates": {
       "title": "Updates",
       "subtitle": "Check versions and upgrade the system"
@@ -5496,6 +5520,37 @@
     "reload": "Reload",
     "retry": "Retry",
     "backHome": "Back to Home"
+  },
+  "managedExperts": {
+    "warning": "Saving updates the system template. Publishing synchronizes all managed Tonglian Fazai experts and reloads running instances. User credentials are preserved.",
+    "version": "Current template version: {{version}}",
+    "labelZh": "Chinese name",
+    "labelEn": "English name",
+    "descriptionZh": "Chinese description",
+    "descriptionEn": "English description",
+    "welcomeZh": "Chinese welcome message",
+    "welcomeEn": "English welcome message",
+    "soul": "System prompt (SOUL.md)",
+    "quickPrompts": "Quick prompts",
+    "quickPrompt": "Quick prompt",
+    "addQuickPrompt": "Add quick prompt",
+    "removeQuickPrompt": "Remove quick prompt",
+    "promptTitleZh": "Chinese title",
+    "promptTitleEn": "English title",
+    "promptDescriptionZh": "Chinese description",
+    "promptDescriptionEn": "English description",
+    "promptZh": "Chinese prompt",
+    "promptEn": "English prompt",
+    "taskExamples": "Task presets",
+    "taskExamplesZh": "Chinese task presets",
+    "taskExamplesEn": "English task presets",
+    "builtinSkills": "Built-in skills",
+    "marketSkills": "Installed market skill packages",
+    "noMarketSkills": "No skill packages installed yet. Install one from Skill Packages first.",
+    "save": "Save template",
+    "publish": "Publish to all users",
+    "saved": "Template saved",
+    "published": "Published to {{updated}} users; reloaded {{reloaded}} running experts; {{reloadFailed}} reloads failed."
   },
   "adminProviders": {
     "title": "Providers",

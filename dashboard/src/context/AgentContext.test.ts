@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { OctopAgent } from "./AgentContext";
-import { projectChatAgentOption, selectEnabledExperts } from "./AgentContext";
+import {
+  isTonglianFazaiAgent,
+  projectChatAgentOption,
+  selectEnabledExperts,
+  selectInitialAgent,
+} from "./AgentContext";
 
 function agent(
   agent_id: string,
@@ -97,6 +102,18 @@ describe("selectEnabledExperts", () => {
   });
 });
 
+describe("isTonglianFazaiAgent", () => {
+  it("recognizes only the managed Tonglian expert", () => {
+    expect(isTonglianFazaiAgent({ managed_type: "tonglian_fazai" })).toBe(
+      true,
+    );
+    expect(isTonglianFazaiAgent({ managed_type: "general_assistant" })).toBe(
+      false,
+    );
+    expect(isTonglianFazaiAgent(null)).toBe(false);
+  });
+});
+
 describe("projectChatAgentOption", () => {
   it("projects the full OctopAgent down to ChatAgentOption shape", () => {
     const projected = projectChatAgentOption(
@@ -126,5 +143,26 @@ describe("projectChatAgentOption", () => {
     expect(projected.owner_username).toBeNull();
     expect(projected.is_shared).toBe(false);
     expect(projected.is_owner).toBe(false);
+  });
+});
+
+describe("selectInitialAgent", () => {
+  it("replaces a stored failed expert with a running managed expert", () => {
+    const agents = [
+      agent("main", "failed", { template_name: "general-assistant" }),
+      agent("fazai", "running", {
+        managed_type: "tonglian_fazai",
+        template_name: "tonglian-fazai",
+      }),
+    ];
+    expect(selectInitialAgent(agents, "main")?.agent_id).toBe("fazai");
+  });
+
+  it("keeps a stored running expert selected", () => {
+    const agents = [
+      agent("fazai", "running", { managed_type: "tonglian_fazai" }),
+      agent("other", "running"),
+    ];
+    expect(selectInitialAgent(agents, "other")?.agent_id).toBe("other");
   });
 });

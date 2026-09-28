@@ -8,12 +8,14 @@ export type SlashClientAction =
 
 export interface SlashCommandSpec {
   name: string;
+  /** Wire command sent to the backend, without usage placeholders. */
   command: string;
   aliases: string[];
   label_en: string;
   label_zh: string;
   description_en: string;
   description_zh: string;
+  /** Human-readable usage hint, such as `/skills [list]`. */
   usage: string;
   icon: string;
   tone: string;

@@ -33,6 +33,38 @@ async def test_create_list_get_delete(env):
     assert r.status_code == 404
 
 
+async def test_admin_can_manage_user_zdx_credentials_without_exposing_key(env):
+    c, _srv, auth = env
+    created = await c.post(
+        "/api/users",
+        headers=auth,
+        json={"username": "zdx_user", "password": "TestPass12", "role": "user"},
+    )
+    assert created.status_code == 201
+    uid = created.json()["id"]
+
+    saved = await c.put(
+        f"/api/users/{uid}/zdx-credentials",
+        headers=auth,
+        json={"api_key": "sk-secret-user", "userid": "oa.zdx_user"},
+    )
+    assert saved.status_code == 200
+    assert saved.json() == {"configured": True, "userid": "oa.zdx_user"}
+    assert "api_key" not in saved.json()
+
+    fetched = await c.get(f"/api/users/{uid}/zdx-credentials", headers=auth)
+    assert fetched.status_code == 200
+    assert fetched.json() == {"configured": True, "userid": "oa.zdx_user"}
+    assert "sk-secret-user" not in fetched.text
+
+    deleted = await c.delete(f"/api/users/{uid}/zdx-credentials", headers=auth)
+    assert deleted.status_code == 204
+    assert (await c.get(f"/api/users/{uid}/zdx-credentials", headers=auth)).json() == {
+        "configured": False,
+        "userid": None,
+    }
+
+
 async def test_non_admin_gets_403(env):
     c, srv, _ = env
     admin_auth = env[2]

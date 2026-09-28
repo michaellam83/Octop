@@ -23,7 +23,8 @@ ALL_PLATS=(
   windows-arm64
 )
 
-# Public GitHub Release names: Octop-<kind>-<os>-<arch>-<version>.<ext>
+# Public desktop release names use AllinpayAI; portable runtime names remain
+# Octop-compatible so the shell can find and upgrade existing runtimes.
 # Zip payload directory stays Octop-<plat>/ (the desktop unzip strips the first
 # path component). PyPI wheels keep the PEP 427 name and are not renamed here.
 octop_version() {
@@ -40,9 +41,9 @@ desktop_pkg_basename() {
   local ver
   ver="$(octop_version)"
   case "$plat" in
-    darwin-*) echo "Octop-desktop-${plat}-${ver}.dmg" ;;
-    windows-*) echo "Octop-desktop-${plat}-${ver}.exe" ;;
-    linux-*) echo "Octop-desktop-${plat}-${ver}.tar.gz" ;;
+    darwin-*) echo "AllinpayAI-desktop-${plat}-${ver}.dmg" ;;
+    windows-*) echo "AllinpayAI-desktop-${plat}-${ver}.exe" ;;
+    linux-*) echo "AllinpayAI-desktop-${plat}-${ver}.tar.gz" ;;
     *)
       echo "unknown platform: ${plat}" >&2
       return 1

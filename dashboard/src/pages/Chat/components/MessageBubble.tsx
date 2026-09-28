@@ -37,7 +37,7 @@ import { prepareSpeechText } from "../../../utils/plainTextForSpeech";
 import {
   chatStreamErrorAction,
   formatChatStreamError,
-  isChatStreamError,
+  isModelRetryFailureMessage,
 } from "../../../utils/chatStreamError";
 import { MessageFileCard } from "./MessageFileCard";
 import AskQuestionCard from "./AskQuestionCard";
@@ -660,7 +660,10 @@ function MessageBubble({
   const isStreaming = message.status === "streaming";
   const hasToolData = !!message.toolData;
   const looksLikeStreamError =
-    !isUser && !hasToolData && !isStreaming && isChatStreamError(textContent);
+    !isUser &&
+    !hasToolData &&
+    !isStreaming &&
+    isModelRetryFailureMessage(textContent);
   const isError = message.status === "error" || looksLikeStreamError;
   const errorBodyText = isError
     ? formatChatStreamError(textContent, t)

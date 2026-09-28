@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from octop.api.common.agent import require_agent_owner_row, user_owns_agent
 from octop.api.common.agent_runtime import AgentRuntimeFields, runtime_field_updates
 from octop.api.common.validators import assert_user_backend_root_dirs
-from octop.api.deps import current_user, get_server
+from octop.api.deps import current_user, get_server, require_admin
 from octop.infra.agents.avatar import (
     display_published_expert_icon_url,
     read_snapshot_avatar,
@@ -62,7 +62,13 @@ from octop.infra.agents.experts.skillhub_market import (
     browse_skillsets,
     fetch_skillset,
 )
+from octop.infra.agents.managed_agent import (
+    list_builtin_skill_slugs,
+    read_zdx_template,
+    write_zdx_template,
+)
 from octop.infra.errors import ErrorCode, OctopError
+from octop.infra.skills.skill_package_store import SkillPackageStore
 from octop.infra.trajectory.settings import apply_enable_trajectory
 from octop.infra.utils.locale import resolve_user_locale
 
@@ -157,6 +163,109 @@ class InstallPublishedExpertBody(AgentRuntimeFields):
 class LocalizedTextResponse(BaseModel):
     zh: str = ""
     en: str = ""
+
+
+class ManagedZdxTemplateBody(BaseModel):
+    label: LocalizedTextResponse
+    description: LocalizedTextResponse
+    welcome_message: LocalizedTextResponse
+    soul: str = Field(min_length=1, max_length=100_000)
+    quick_prompts: list[QuickPromptResponse] = Field(default_factory=list)
+    task_examples: dict[str, list[str]] = Field(default_factory=dict)
+    builtin_skill_slugs: list[str] = Field(default_factory=list)
+    skill_package_ids: list[str] = Field(default_factory=list)
+    managed_model: dict[str, Any] = Field(default_factory=dict)
+
+
+class ManagedZdxTemplateResponse(ManagedZdxTemplateBody):
+    id: str
+    version: str
+    available_builtin_skills: list[str] = Field(default_factory=list)
+    available_skill_packages: list[dict[str, str]] = Field(default_factory=list)
+
+
+def _managed_template_response(template: dict[str, Any], server: Any) -> dict[str, Any]:
+    assert server.services is not None
+    store = SkillPackageStore(
+        repo=server.services.skill_package_repo,
+        root=server.paths.skill_packages_dir,
+    )
+    return {
+        **template,
+        "available_builtin_skills": list_builtin_skill_slugs(),
+        "available_skill_packages": [
+            {"id": item.id, "name": item.name, "description": item.description}
+            for item in store.repo.list_all()
+        ],
+    }
+
+
+@router.get(
+    "/managed-experts/tonglian-fazai/template",
+    response_model=ManagedZdxTemplateResponse,
+    summary="Get the managed Tonglian Fazai template",
+)
+async def get_managed_zdx_template(
+    _: Any = Depends(require_admin()),
+    server: Any = Depends(get_server),
+) -> dict[str, Any]:
+    return _managed_template_response(
+        read_zdx_template(server.paths.tonglian_fazai_template_dir), server
+    )
+
+
+@router.put(
+    "/managed-experts/tonglian-fazai/template",
+    response_model=ManagedZdxTemplateResponse,
+    summary="Update the managed Tonglian Fazai template draft",
+)
+async def update_managed_zdx_template(
+    body: ManagedZdxTemplateBody,
+    _: Any = Depends(require_admin()),
+    server: Any = Depends(get_server),
+) -> dict[str, Any]:
+    assert server.services is not None
+    current = read_zdx_template(server.paths.tonglian_fazai_template_dir)
+    next_version = str(int(current["version"]) + 1)
+    valid_builtin = set(list_builtin_skill_slugs())
+    body_data = body.model_dump()
+    if "quick_prompts" not in body.model_fields_set:
+        body_data["quick_prompts"] = current.get("quick_prompts", [])
+    if "task_examples" not in body.model_fields_set:
+        body_data["task_examples"] = current.get("task_examples", {})
+    body_data["builtin_skill_slugs"] = [
+        item for item in body_data["builtin_skill_slugs"] if item in valid_builtin
+    ]
+    available_package_ids = {row.id for row in server.services.skill_package_repo.list_all()}
+    body_data["skill_package_ids"] = [
+        item for item in body_data["skill_package_ids"] if item in available_package_ids
+    ]
+    if not body_data["managed_model"]:
+        body_data["managed_model"] = current.get("managed_model", {})
+    return _managed_template_response(
+        write_zdx_template(
+            {**body_data, "version": next_version},
+            template_dir=server.paths.tonglian_fazai_template_dir,
+        ),
+        server,
+    )
+
+
+@router.post(
+    "/managed-experts/tonglian-fazai/template/publish",
+    summary="Publish the managed Tonglian Fazai template to all users",
+)
+async def publish_managed_zdx_template(
+    user: Any = Depends(require_admin()),
+    server: Any = Depends(get_server),
+) -> dict[str, Any]:
+    template = read_zdx_template(server.paths.tonglian_fazai_template_dir)
+    if server.app_runtime is None:
+        raise OctopError(ErrorCode.INTERNAL_ERROR, "server runtime not initialized")
+    result = await server.app_runtime.agent_registry.sync_zdx_template(
+        template, actor=str(user.username)
+    )
+    return {"template": template, **result}
 
 
 class QuickPromptResponse(BaseModel):

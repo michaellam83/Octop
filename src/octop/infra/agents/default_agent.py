@@ -44,7 +44,7 @@ async def bootstrap_default_agent(
     """
     if agent_id == SETUP_DEFAULT_AGENT_ID and registry.get_row(SETUP_DEFAULT_AGENT_ID) is not None:
         return None
-    if registry.list_agents(user_id):
+    if any(getattr(row, "managed_type", None) is None for row in registry.list_agents(user_id)):
         return None
     if catalog is None:
         raise OctopError(ErrorCode.INTERNAL_ERROR, "expert catalog not available")

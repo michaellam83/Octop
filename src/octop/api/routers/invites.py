@@ -127,11 +127,7 @@ async def redeem_invite(
     request: Request,
     server: Any = Depends(get_server),
 ) -> dict[str, Any]:
-    """Create a regular user from a one-time invite and return a login token.
-
-    Also bootstraps the same default ``general-assistant`` expert as the setup
-    wizard (auto-allocated agent id; setup pins ``main`` for the first admin).
-    """
+    """Create a regular user from a one-time invite and return a login token."""
     check_invite_rate_limit(_client_id(request))
     locale = resolve_request_locale(request)
     user = await server.user_manager.create_from_invite(
@@ -142,9 +138,6 @@ async def redeem_invite(
         email=body.email,
         locale=locale,
     )
-    from octop.infra.agents.default_agent import try_bootstrap_default_agent
-
-    await try_bootstrap_default_agent(server, user_id=user.id, locale=user.locale)
     secret = server.services.secret_repo.get("jwt")
     ttl = server.services.config.access_token_ttl_seconds
     token = sign_token(

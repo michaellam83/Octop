@@ -142,3 +142,35 @@ def test_create_and_update_profile_fields(repo: AgentRepo, user_id: int):
     assert updated.color == "#111111"
     assert updated.welcome_message == "改"
     assert updated.icon_name == "zap"
+
+
+def test_managed_metadata_is_persisted_and_unique_per_user(repo: AgentRepo, user_id: int):
+    first = new_ulid()
+    repo.create(
+        agent_id=first,
+        user_id=user_id,
+        name="managed-a",
+        managed_type="tonglian_fazai",
+        config_locked=True,
+        template_version="1",
+    )
+    row = repo.get(first)
+    assert row is not None
+    assert row.managed_type == "tonglian_fazai"
+    assert row.config_locked == 1
+    assert row.template_version == "1"
+
+    second = new_ulid()
+    with pytest.raises(sqlite3.IntegrityError):
+        repo.create(
+            agent_id=second,
+            user_id=user_id,
+            name="managed-b",
+            managed_type="tonglian_fazai",
+        )
+
+    repo.set_managed_metadata(first, template_version="2", config_locked=False)
+    updated = repo.get(first)
+    assert updated is not None
+    assert updated.template_version == "2"
+    assert updated.config_locked == 0

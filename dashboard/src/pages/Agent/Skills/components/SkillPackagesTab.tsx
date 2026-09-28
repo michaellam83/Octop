@@ -62,6 +62,7 @@ export default function SkillPackagesTab({
     () => agents.find((row) => row.agent_id === agentId) ?? null,
     [agents, agentId],
   );
+  const supportsSkills = agent?.managed_capabilities?.supports_skills !== false;
   const packagesSupported = supportsHostSkillPackagesFromConfig(
     agent?.config ?? null,
   );
@@ -84,6 +85,12 @@ export default function SkillPackagesTab({
   const [copyOverwrite, setCopyOverwrite] = useState(false);
 
   useEffect(() => {
+    if (!supportsSkills) {
+      setCatalog([]);
+      setMountedIds([]);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     Promise.all([
@@ -106,7 +113,7 @@ export default function SkillPackagesTab({
     return () => {
       cancelled = true;
     };
-  }, [agentId, t]);
+  }, [agentId, supportsSkills, t]);
 
   const skillsBySlug = useMemo(
     () => new Map(skills.map((skill) => [skill.slug, skill])),
@@ -219,6 +226,8 @@ export default function SkillPackagesTab({
 
   const detailMounted =
     detailPackage != null && mountedSet.has(detailPackage.id);
+
+  if (!supportsSkills) return null;
 
   return (
     <>

@@ -4,6 +4,7 @@ import {
   classifyChatStreamError,
   formatChatStreamError,
   isChatStreamError,
+  isModelRetryFailureMessage,
 } from "./chatStreamError";
 
 const t = ((key: string) => `translated:${key}`) as unknown as (
@@ -72,6 +73,19 @@ describe("classifyChatStreamError", () => {
   it("leaves unknown messages alone", () => {
     expect(classifyChatStreamError("hello world")).toBeNull();
     expect(formatChatStreamError("hello world", t)).toBe("hello world");
+  });
+
+  it("only treats explicit Harness retry messages as synthetic failures", () => {
+    expect(
+      isModelRetryFailureMessage(
+        "Model call failed after 3 attempts with TimeoutError: timed out",
+      ),
+    ).toBe(true);
+    expect(
+      isModelRetryFailureMessage(
+        "本次查询结果已返回。余额不足时，请联系管理员处理。",
+      ),
+    ).toBe(false);
   });
 
   it("formats known failures through i18n", () => {

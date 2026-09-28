@@ -322,6 +322,9 @@ class OctopServer:
         db = open_database(config, self.paths)
         run_migrations(db)
         self.services = build_shared_services(db=db, paths=self.paths, config=config)
+        from octop.infra.agents.managed_agent import remove_legacy_zdx_provider
+
+        remove_legacy_zdx_provider(self.services.provider_repo, self.services.agent_repo)
         from octop.infra.auth.captcha import boot_from_services  # noqa: PLC0415
 
         boot_from_services(self.services.settings_repo, self.services.secret_repo)
@@ -349,6 +352,9 @@ class OctopServer:
             db.close()
             raise
         self.services = build_shared_services(db=db, paths=self.paths, config=config)
+        from octop.infra.agents.managed_agent import remove_legacy_zdx_provider
+
+        remove_legacy_zdx_provider(self.services.provider_repo, self.services.agent_repo)
         from octop.infra.auth.captcha import boot_from_services  # noqa: PLC0415
 
         boot_from_services(self.services.settings_repo, self.services.secret_repo)
@@ -473,7 +479,9 @@ class OctopServer:
         await gateway.refresh_media_backends()
 
         user_mgr = UserManager(self.services)
+        user_mgr.set_agent_provisioner(registry.ensure_managed_agents_for_user)
         await user_mgr.boot()
+        await registry.ensure_managed_agents_for_users(user_mgr.list())
         await proactive_scheduler.start_all()
 
         self.app_runtime = AppRuntime(

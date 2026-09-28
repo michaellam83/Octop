@@ -60,7 +60,7 @@ describe("pathPermissionKeys", () => {
   it("does not gate common pages", () => {
     expect(pathPermissionKeys("/chat")).toBeNull();
     expect(pathPermissionKeys("/experts")).toBeNull();
-    expect(pathPermissionKeys("/tasks")).toBeNull();
+    expect(pathPermissionKeys("/tasks")).toBe("admin");
     expect(pathPermissionKeys("/token-usage")).toBeNull();
     expect(pathPermissionKeys("/personalization/skills")).toBeNull();
   });
@@ -91,6 +91,10 @@ describe("pathPermissionKeys", () => {
       ),
     ).toBe(true);
     expect(canAccessPath(user, "/admin/users")).toBe(false);
+    expect(canAccessPath(user, "/tasks")).toBe(false);
+    expect(canAccessPath({ role: "admin", permissions: [] }, "/tasks")).toBe(
+      true,
+    );
     expect(canAccessPath({ role: "admin", permissions: [] }, "/acp")).toBe(
       true,
     );
