@@ -64,7 +64,8 @@ tasks:
           "Remove-Item -Force '{{.BIN_DIR}}/{{.APP_NAME}}-Desktop-windows-{{.ARCH}}.zip' -ErrorAction SilentlyContinue;
           Remove-Item -Force '{{.BIN_DIR}}/{{.APP_NAME}}-Desktop-windows-{{.ARCH}}.exe' -ErrorAction SilentlyContinue;
           Remove-Item -Recurse -Force '{{.BIN_DIR}}/{{.APP_NAME}}-Desktop-windows-{{.ARCH}}' -ErrorAction SilentlyContinue;
-          Remove-Item -Force 'bundled/portable.zip' -ErrorAction SilentlyContinue"
+          Remove-Item -Force 'bundled/portable.zip' -ErrorAction SilentlyContinue;
+          Remove-Item -Force 'build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerX64.exe' -ErrorAction SilentlyContinue"
     vars:
       ARCH: "{{.ARCH | default ARCH}}"
       VERSION: '{{.VERSION | default "dev"}}'
@@ -82,18 +83,28 @@ tasks:
       - wails3 generate webview2bootstrapper -dir "{{.ROOT_DIR}}/build/windows/nsis"
       - cmd: >-
           powershell -NoProfile -Command
+          "$arch='{{.ARCH | default ARCH}}';
+          if ($arch -eq 'amd64') {
+            $uri='https://go.microsoft.com/fwlink/?linkid=2124701';
+            $dest='{{.ROOT_DIR}}/build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerX64.exe';
+            if (-not (Test-Path $dest)) { Invoke-WebRequest -UseBasicParsing -Uri $uri -OutFile $dest -ErrorAction Stop }
+          }"
+        platforms: [windows]
+      - cmd: >-
+          powershell -NoProfile -Command
           "Remove-Item -Force '{{.ROOT_DIR}}/{{.ARCHIVE}}' -ErrorAction SilentlyContinue;
           New-Item -ItemType Directory -Force '{{.ROOT_DIR}}/{{.BIN_DIR}}' | Out-Null"
       - |
-        {{if eq OS "windows"}}
-        makensis {{.VERSION_NSIS_DEFINE}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe" -DINSTALLER_OUTFILE="{{.ROOT_DIR}}\{{.ARCHIVE}}" project.nsi
+          {{if eq OS "windows"}}
+        makensis {{.VERSION_NSIS_DEFINE}}{{.WEBVIEW2_DEFINE}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe" -DINSTALLER_OUTFILE="{{.ROOT_DIR}}\{{.ARCHIVE}}" project.nsi
         {{else}}
-        makensis {{.VERSION_NSIS_DEFINE}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" -DINSTALLER_OUTFILE="{{.ROOT_DIR}}/{{.ARCHIVE}}" project.nsi
+        makensis {{.VERSION_NSIS_DEFINE}}{{.WEBVIEW2_DEFINE}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" -DINSTALLER_OUTFILE="{{.ROOT_DIR}}/{{.ARCHIVE}}" project.nsi
         {{end}}
     vars:
       ARCH: '{{.ARCH | default ARCH}}'
       VERSION: '{{.VERSION | default "dev"}}'
       VERSION_NSIS_DEFINE: '{{if and .VERSION (ne .VERSION "dev")}}-DINFO_PRODUCTVERSION="{{.VERSION}}" {{end}}'
+      WEBVIEW2_DEFINE: '{{if eq (.ARCH | default ARCH) "amd64"}}-DARG_WAILS_WEBVIEW2_STANDALONE="{{.ROOT_DIR}}/build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerX64.exe" {{end}}'
       ARG_FLAG: '{{if eq (.ARCH | default ARCH) "amd64"}}AMD64{{else}}ARM64{{end}}'
       ARCHIVE: '{{.BIN_DIR}}/{{.APP_NAME}}-desktop-windows-{{.ARCH}}-{{.VERSION}}.exe'
 

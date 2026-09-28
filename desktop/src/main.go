@@ -306,8 +306,9 @@ func main() {
 	}
 
 	app := application.New(application.Options{
-		Name:        "AllinpayAI",
-		Description: "AllinpayAI desktop",
+		Name:         "AllinpayAI",
+		Description:  "AllinpayAI desktop",
+		ErrorHandler: reportApplicationError,
 		Services: []application.Service{
 			application.NewService(api),
 		},
@@ -316,6 +317,7 @@ func main() {
 		},
 		Windows: application.WindowsOptions{
 			DisableQuitOnLastWindowClosed: true,
+			WebviewUserDataPath:           webviewUserDataPath(),
 		},
 		Linux: application.LinuxOptions{
 			DisableQuitOnLastWindowClosed: true,
@@ -419,6 +421,7 @@ func main() {
 	go api.boot()
 
 	if err := app.Run(); err != nil {
-		log.Fatal(err)
+		reportApplicationError(err)
+		return
 	}
 }

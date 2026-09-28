@@ -169,15 +169,18 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
     ${EndIf}
 !macroend
 
-# Install webview2 by launching the bootstrapper
-# See https://docs.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution#online-only-deployment
+# Install WebView2 using the bundled standalone installer when available;
+# otherwise fall back to the online bootstrapper.
 !macro wails.webview2runtime
     !ifndef WAILS_INSTALL_WEBVIEW_DETAILPRINT
         !define WAILS_INSTALL_WEBVIEW_DETAILPRINT "Installing: WebView2 Runtime"
     !endif
 
     SetRegView 64
-    ReadRegStr $0 HKLM "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+    ReadRegStr $0 HKLM "SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+    ${If} $0 == ""
+        ReadRegStr $0 HKLM "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+    ${EndIf}
     ${If} $0 != ""
         Goto ok
     ${EndIf}
@@ -196,8 +199,34 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
     InitPluginsDir
     CreateDirectory "$pluginsdir\webview2bootstrapper"
     SetOutPath "$pluginsdir\webview2bootstrapper"
-    File "MicrosoftEdgeWebview2Setup.exe"
-    ExecWait '"$pluginsdir\webview2bootstrapper\MicrosoftEdgeWebview2Setup.exe" /silent /install'
+    !ifdef ARG_WAILS_WEBVIEW2_STANDALONE
+        File "/oname=MicrosoftEdgeWebView2RuntimeInstaller.exe" "${ARG_WAILS_WEBVIEW2_STANDALONE}"
+        ExecWait '"$pluginsdir\webview2bootstrapper\MicrosoftEdgeWebView2RuntimeInstaller.exe" /silent /install' $0
+    !else
+        File "MicrosoftEdgeWebview2Setup.exe"
+        ExecWait '"$pluginsdir\webview2bootstrapper\MicrosoftEdgeWebview2Setup.exe" /silent /install' $0
+    !endif
+
+    ; Do not finish installation when WebView2 could not be installed,
+    ; otherwise the application exits silently on the first launch.
+    ${If} $0 != 0
+        ${If} $0 != 3010
+            MessageBox MB_ICONSTOP|MB_OK "WebView2 Runtime 安装失败（错误码：$0）。请重新运行安装程序，或联系管理员安装 Microsoft Edge WebView2 Runtime。"
+            Abort
+        ${EndIf}
+    ${EndIf}
+    SetRegView 64
+    ReadRegStr $0 HKLM "SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+    ${If} $0 == ""
+        ReadRegStr $0 HKLM "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+    ${EndIf}
+    ${If} $0 == ""
+        ReadRegStr $0 HKCU "Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+    ${EndIf}
+    ${If} $0 == ""
+        MessageBox MB_ICONSTOP|MB_OK "未检测到 WebView2 Runtime。请先安装 WebView2 Evergreen Standalone Installer 后重试。"
+        Abort
+    ${EndIf}
 
     SetDetailsPrint both
     ok:
