@@ -95,7 +95,7 @@ tasks:
           "Remove-Item -Force '{{.ROOT_DIR}}/{{.ARCHIVE}}' -ErrorAction SilentlyContinue;
           New-Item -ItemType Directory -Force '{{.ROOT_DIR}}/{{.BIN_DIR}}' | Out-Null"
       - |
-          {{if eq OS "windows"}}
+        {{if eq OS "windows"}}
         makensis {{.VERSION_NSIS_DEFINE}}{{.WEBVIEW2_DEFINE}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe" -DINSTALLER_OUTFILE="{{.ROOT_DIR}}\{{.ARCHIVE}}" project.nsi
         {{else}}
         makensis {{.VERSION_NSIS_DEFINE}}{{.WEBVIEW2_DEFINE}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" -DINSTALLER_OUTFILE="{{.ROOT_DIR}}/{{.ARCHIVE}}" project.nsi
