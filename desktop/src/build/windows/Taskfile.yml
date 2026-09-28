@@ -65,7 +65,8 @@ tasks:
           Remove-Item -Force '{{.BIN_DIR}}/{{.APP_NAME}}-Desktop-windows-{{.ARCH}}.exe' -ErrorAction SilentlyContinue;
           Remove-Item -Recurse -Force '{{.BIN_DIR}}/{{.APP_NAME}}-Desktop-windows-{{.ARCH}}' -ErrorAction SilentlyContinue;
           Remove-Item -Force 'bundled/portable.zip' -ErrorAction SilentlyContinue;
-          Remove-Item -Force 'build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerX64.exe' -ErrorAction SilentlyContinue"
+          Remove-Item -Force 'build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerX64.exe' -ErrorAction SilentlyContinue;
+          Remove-Item -Force 'build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerARM64.exe' -ErrorAction SilentlyContinue"
     vars:
       ARCH: "{{.ARCH | default ARCH}}"
       VERSION: '{{.VERSION | default "dev"}}'
@@ -82,13 +83,9 @@ tasks:
     cmds:
       - wails3 generate webview2bootstrapper -dir "{{.ROOT_DIR}}/build/windows/nsis"
       - cmd: >-
-          powershell -NoProfile -Command
-          "$arch='{{.ARCH | default ARCH}}';
-          if ($arch -eq 'amd64') {
-            $uri='https://go.microsoft.com/fwlink/?linkid=2124701';
-            $dest='{{.ROOT_DIR}}/build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerX64.exe';
-            if (-not (Test-Path $dest)) { Invoke-WebRequest -UseBasicParsing -Uri $uri -OutFile $dest -ErrorAction Stop }
-          }"
+          powershell -NoProfile -ExecutionPolicy Bypass
+          -File "{{.ROOT_DIR}}/build/windows/download-webview2.ps1"
+          -Architecture "{{.ARCH | default ARCH}}"
         platforms: [windows]
       - cmd: >-
           powershell -NoProfile -Command
@@ -104,7 +101,7 @@ tasks:
       ARCH: '{{.ARCH | default ARCH}}'
       VERSION: '{{.VERSION | default "dev"}}'
       VERSION_NSIS_DEFINE: '{{if and .VERSION (ne .VERSION "dev")}}-DINFO_PRODUCTVERSION="{{.VERSION}}" {{end}}'
-      WEBVIEW2_DEFINE: '{{if eq (.ARCH | default ARCH) "amd64"}}-DARG_WAILS_WEBVIEW2_STANDALONE="{{.ROOT_DIR}}/build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerX64.exe" {{end}}'
+      WEBVIEW2_DEFINE: '{{if eq (.ARCH | default ARCH) "amd64"}}-DARG_WAILS_WEBVIEW2_STANDALONE="{{.ROOT_DIR}}/build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerX64.exe" {{else}}{{if eq (.ARCH | default ARCH) "arm64"}}-DARG_WAILS_WEBVIEW2_STANDALONE="{{.ROOT_DIR}}/build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerARM64.exe" {{end}}{{end}}'
       ARG_FLAG: '{{if eq (.ARCH | default ARCH) "amd64"}}AMD64{{else}}ARM64{{end}}'
       ARCHIVE: '{{.BIN_DIR}}/{{.APP_NAME}}-desktop-windows-{{.ARCH}}-{{.VERSION}}.exe'
 
