@@ -22,6 +22,8 @@ const (
 	copyHealthNotReady5xx      = "health.not_ready_5xx"
 	copyHealthNotReadyConnect  = "health.not_ready_connect"
 	copyHealthNotReady         = "health.not_ready"
+	copyRetryConnection        = "action.retry_connection"
+	copyOpenConnectionBrowser  = "action.open_connection_browser"
 )
 
 var desktopCopy = map[Locale]map[string]string{
@@ -45,6 +47,8 @@ var desktopCopy = map[Locale]map[string]string{
 		copyHealthNotReady5xx:      "AllinpayAI did not become ready within %s (%s). The service responded but is not ready yet. Try again, or check the terminal logs.",
 		copyHealthNotReadyConnect:  "AllinpayAI did not become ready within %s (%s). Could not connect — make sure AllinpayAI is running.",
 		copyHealthNotReady:         "AllinpayAI did not become ready within %s (%s). Make sure AllinpayAI is running at this address, or check the terminal logs.",
+		copyRetryConnection:        "Retry connection",
+		copyOpenConnectionBrowser:  "Open address in browser",
 	},
 	LocaleZH: {
 		copyStatusConnecting:       "正在连接 AllinpayAI…",
@@ -66,6 +70,8 @@ var desktopCopy = map[Locale]map[string]string{
 		copyHealthNotReady5xx:      "AllinpayAI 服务未在%s内就绪（%s）。服务已响应但尚未就绪，请稍后再试，或查看终端日志。",
 		copyHealthNotReadyConnect:  "AllinpayAI 服务未在%s内就绪（%s）。目前无法连接该地址，请确认 AllinpayAI 正在运行。",
 		copyHealthNotReady:         "AllinpayAI 服务未在%s内就绪（%s）。请确认本机已启动 AllinpayAI，且地址、端口正确；也可查看终端日志。",
+		copyRetryConnection:        "重试连接",
+		copyOpenConnectionBrowser:  "在浏览器中打开地址",
 	},
 }
 

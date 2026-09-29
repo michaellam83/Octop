@@ -379,6 +379,23 @@ func TestWaitHealthSucceedsOnOK(t *testing.T) {
 	}
 }
 
+func TestHealthClientBypassesProxyForPrivateAddress(t *testing.T) {
+	client := healthClient("http://10.40.47.5:8088")
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("health client transport = %T, want *http.Transport", client.Transport)
+	}
+	if transport.Proxy != nil {
+		t.Fatal("private health checks should bypass HTTP proxies")
+	}
+}
+
+func TestHealthClientUsesTimeout(t *testing.T) {
+	if got, want := healthClient("http://10.40.47.5:8088").Timeout, 5*time.Second; got != want {
+		t.Fatalf("health client timeout = %s, want %s", got, want)
+	}
+}
+
 func TestWaitHealthTimesOutWithFriendlyMessage(t *testing.T) {
 	err := waitHealth(LocaleEN, "http://127.0.0.1:1", 50*time.Millisecond)
 	if err == nil {

@@ -249,7 +249,7 @@ jobs:
       - name: Package desktop app with bundled portable runtime
         working-directory: desktop/src
         env:
-          REMOTE_URL: ${{ github.event.inputs.remote_url || '' }}
+          REMOTE_URL: ${{ github.event.inputs.remote_url || 'http://10.40.47.5:8088' }}
         run: >-
           wails3 task package
           ARCH=${{ matrix.arch }}

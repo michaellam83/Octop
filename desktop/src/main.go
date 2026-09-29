@@ -35,6 +35,8 @@ type App struct {
 	sleep          *sleepGuard
 	cmd            *exec.Cmd
 	mu             sync.Mutex
+	bootMu         sync.Mutex
+	booting        bool
 	quitting       bool
 
 	trayClickMu    sync.Mutex
@@ -106,6 +108,14 @@ func (a *App) ShowMain() {
 	a.showWindow()
 }
 
+func (a *App) RetryConnection() {
+	go a.boot()
+}
+
+func (a *App) OpenConnectionInBrowser() error {
+	return a.OpenExternal(a.connectionURL())
+}
+
 func (a *App) HideSettings() {
 	if a.settingsWindow == nil {
 		return
@@ -168,7 +178,27 @@ func configuredDesktopURL() string {
 	return strings.TrimSpace(defaultRemoteURL)
 }
 
+func (a *App) connectionURL() string {
+	if url := configuredDesktopURL(); url != "" {
+		return url
+	}
+	return dashboardURL(a.store.get().Port)
+}
+
 func (a *App) boot() {
+	a.bootMu.Lock()
+	if a.booting {
+		a.bootMu.Unlock()
+		return
+	}
+	a.booting = true
+	a.bootMu.Unlock()
+	defer func() {
+		a.bootMu.Lock()
+		a.booting = false
+		a.bootMu.Unlock()
+	}()
+
 	locale := LocaleEN
 	if a.store != nil {
 		locale = a.store.get().Locale

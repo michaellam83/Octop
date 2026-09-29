@@ -395,6 +395,40 @@
       .loading.is-error .loading-status {
         color: #991b1b;
       }
+      .loading-actions {
+        display: none;
+        gap: 10px;
+        width: 100%;
+      }
+      .loading.is-error .loading-actions {
+        display: flex;
+      }
+      .loading-actions button {
+        flex: 1;
+        min-width: 0;
+        padding: 9px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .loading-actions .primary {
+        background: var(--brand);
+        color: var(--on-brand);
+        border: 0;
+      }
+      .loading-actions .primary:hover {
+        background: var(--brand-hover);
+      }
+      .loading-actions .ghost {
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        border: 1px solid var(--border);
+      }
+      .loading-actions .ghost:hover {
+        background: var(--bg-secondary);
+      }
       @keyframes loading-slide {
         0% {
           transform: translateX(-120%);
@@ -492,6 +526,14 @@
             <span class="loading-bar-fill"></span>
           </div>
           <p class="loading-status" id="status">正在启动，请稍候…</p>
+          <div class="loading-actions">
+            <button class="primary" id="retry-connection" type="button">
+              重试连接
+            </button>
+            <button class="ghost" id="open-connection-browser" type="button">
+              在浏览器中打开地址
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -572,6 +614,8 @@
           sleepH: "应用运行期间阻止系统自动休眠",
           showMain: "显示 AllinpayAI",
           quit: "退出",
+          retry: "重试连接",
+          openBrowser: "在浏览器中打开地址",
           winGroup: "窗口控制",
           winMin: "最小化",
           winMax: "最大化",
@@ -592,6 +636,8 @@
           sleepH: "Keeps the system awake while AllinpayAI is running",
           showMain: "Show AllinpayAI",
           quit: "Quit",
+          retry: "Retry connection",
+          openBrowser: "Open address in browser",
           winGroup: "Window controls",
           winMin: "Minimize",
           winMax: "Maximize",
@@ -626,6 +672,9 @@
         document.getElementById("h-sleep").textContent = t.sleepH;
         document.getElementById("show-main").textContent = t.showMain;
         document.getElementById("quit").textContent = t.quit;
+        document.getElementById("retry-connection").textContent = t.retry;
+        document.getElementById("open-connection-browser").textContent =
+          t.openBrowser;
         document.getElementById("loading-hint").textContent = t.loadingHint;
         applyWindowCopy(t);
       }
@@ -723,6 +772,16 @@
           .getElementById("quit")
           .addEventListener("click", () => call("Quit"));
       }
+
+      document
+        .getElementById("retry-connection")
+        .addEventListener("click", () => {
+          document.getElementById("loading-panel").classList.remove("is-error");
+          call("RetryConnection");
+        });
+      document
+        .getElementById("open-connection-browser")
+        .addEventListener("click", () => call("OpenConnectionInBrowser"));
 
       Events.On("desktop:status", (ev) => {
         const msg =
