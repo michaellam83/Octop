@@ -99,7 +99,7 @@ tasks:
       ARCH: '{{.ARCH | default ARCH}}'
       VERSION: '{{.VERSION | default "dev"}}'
       VERSION_NSIS_DEFINE: '{{if and .VERSION (ne .VERSION "dev")}}-DINFO_PRODUCTVERSION="{{.VERSION}}" {{end}}'
-      WEBVIEW2_DEFINE: '{{if eq (.ARCH | default ARCH) "amd64"}}-DARG_WAILS_WEBVIEW2_STANDALONE="{{.ROOT_DIR}}/build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerX64.exe" {{else}}{{if eq (.ARCH | default ARCH) "arm64"}}-DARG_WAILS_WEBVIEW2_STANDALONE="{{.ROOT_DIR}}/build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerARM64.exe" {{end}}{{end}}'
+      WEBVIEW2_DEFINE: '{{if eq OS "windows"}}{{if eq (.ARCH | default ARCH) "amd64"}}-DARG_WAILS_WEBVIEW2_STANDALONE="{{.ROOT_DIR}}\build\windows\nsis\MicrosoftEdgeWebView2RuntimeInstallerX64.exe" {{else}}{{if eq (.ARCH | default ARCH) "arm64"}}-DARG_WAILS_WEBVIEW2_STANDALONE="{{.ROOT_DIR}}\build\windows\nsis\MicrosoftEdgeWebView2RuntimeInstallerARM64.exe" {{end}}{{end}}{{else}}{{if eq (.ARCH | default ARCH) "amd64"}}-DARG_WAILS_WEBVIEW2_STANDALONE="{{.ROOT_DIR}}/build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerX64.exe" {{else}}{{if eq (.ARCH | default ARCH) "arm64"}}-DARG_WAILS_WEBVIEW2_STANDALONE="{{.ROOT_DIR}}/build/windows/nsis/MicrosoftEdgeWebView2RuntimeInstallerARM64.exe" {{end}}{{end}}{{end}}'
       ARG_FLAG: '{{if eq (.ARCH | default ARCH) "amd64"}}AMD64{{else}}ARM64{{end}}'
       ARCHIVE: '{{.BIN_DIR}}/{{.APP_NAME}}-desktop-windows-{{.ARCH}}-{{.VERSION}}.exe'
 
