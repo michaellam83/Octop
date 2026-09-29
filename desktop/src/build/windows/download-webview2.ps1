@@ -25,12 +25,23 @@ New-Item -ItemType Directory -Force -Path $targetDirectory | Out-Null
 if (-not (Test-Path -LiteralPath $target)) {
     Write-Host "Downloading WebView2 runtime for $Architecture..."
     Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $partial
-    Invoke-WebRequest `
-        -UseBasicParsing `
-        -MaximumRedirection 5 `
-        -Uri $download.Uri `
-        -OutFile $partial `
-        -ErrorAction Stop
+    & curl.exe `
+        --fail `
+        --location `
+        --show-error `
+        --retry 4 `
+        --retry-all-errors `
+        --retry-delay 5 `
+        --max-time 900 `
+        --output $partial `
+        $download.Uri
+    if ($LASTEXITCODE -ne 0) {
+        throw "WebView2 runtime download failed with curl exit code $LASTEXITCODE"
+    }
+
+    if (-not (Test-Path -LiteralPath $partial -PathType Leaf)) {
+        throw "WebView2 runtime download did not create a file: $partial"
+    }
     Move-Item -Force -LiteralPath $partial -Destination $target
 }
 
@@ -38,3 +49,4 @@ $file = Get-Item -LiteralPath $target -ErrorAction Stop
 if ($file.Length -lt 1MB) {
     throw "WebView2 runtime download is unexpectedly small: $target"
 }
+Write-Host "WebView2 runtime ready: $($file.Name) ($($file.Length) bytes)"
