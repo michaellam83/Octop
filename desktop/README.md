@@ -53,10 +53,10 @@ so the `.exe` is an installer rather than a portable single-file binary.
 
 Run these from **`desktop/src`** (that directory contains `Taskfile.yml` and
 `build/config.yml`). Requires **Go 1.25+**, [Wails v3](https://v3.wails.io/)
-`v3.0.0-beta.13`.
+`v3.0.0-beta.26`.
 
 ```bash
-go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.13
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.26
 cd desktop/src
 go mod tidy
 wails3 build            # development binary under desktop/src/bin/
