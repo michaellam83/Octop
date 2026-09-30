@@ -96,6 +96,12 @@ interface UserRow {
   permissions?: string[];
   workspace_root_dir?: string | null;
   token_quota?: number | null;
+  zdx_configured?: boolean;
+}
+
+interface ZdxCredentialValues {
+  api_key: string;
+  userid: string;
 }
 
 interface PermissionCatalogItem {
@@ -181,6 +187,7 @@ interface UserCardGridProps {
   onEdit: (row: UserRow) => void;
   onShowAgents: (row: UserRow) => void;
   onResetPassword: (row: UserRow) => void;
+  onConfigureZdx: (row: UserRow) => void;
   onDelete: (row: UserRow) => Promise<void>;
   onUnlockLogin: (row: UserRow) => Promise<void>;
   nowSec: number;
@@ -585,6 +592,7 @@ function UserCardGrid({
   onEdit,
   onShowAgents,
   onResetPassword,
+  onConfigureZdx,
   onDelete,
   onUnlockLogin,
   nowSec,
@@ -700,6 +708,9 @@ function UserCardGrid({
                     {t("adminUsers.passwordBadge")}
                   </span>
                 )}
+                {row.zdx_configured && (
+                  <Tag color="green">{t("adminUsers.zdxConfigured")}</Tag>
+                )}
               </div>
 
               <div className={styles.userCardInfo}>
@@ -781,6 +792,20 @@ function UserCardGrid({
                     aria-label={t("adminUsers.resetPassword")}
                   >
                     <KeyRound size={15} />
+                  </button>
+                </Tooltip>
+
+                <Tooltip
+                  title={t("adminUsers.zdxConfigure")}
+                  mouseEnterDelay={0.5}
+                >
+                  <button
+                    type="button"
+                    className={styles.userCardIconBtn}
+                    onClick={() => onConfigureZdx(row)}
+                    aria-label={t("adminUsers.zdxConfigure")}
+                  >
+                    <ShieldCheck size={15} />
                   </button>
                 </Tooltip>
 
@@ -897,6 +922,10 @@ export default function UsersListPanel() {
   const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
   const [resetSubmitting, setResetSubmitting] = useState(false);
   const [resetForm] = Form.useForm<ResetValues>();
+  const [zdxTarget, setZdxTarget] = useState<UserRow | null>(null);
+  const [zdxLoading, setZdxLoading] = useState(false);
+  const [zdxSubmitting, setZdxSubmitting] = useState(false);
+  const [zdxForm] = Form.useForm<ZdxCredentialValues>();
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [agentDrawerUser, setAgentDrawerUser] = useState<UserRow | null>(null);
   const [editAgent, setEditAgent] = useState<OctopAgent | null>(null);
@@ -1242,6 +1271,70 @@ export default function UsersListPanel() {
     }
   };
 
+  const openZdx = async (row: UserRow) => {
+    setZdxTarget(row);
+    zdxForm.resetFields();
+    setZdxLoading(true);
+    try {
+      const data = await request<{
+        configured: boolean;
+        userid: string | null;
+      }>(`/users/${row.id}/zdx-credentials`);
+      zdxForm.setFieldsValue({ userid: data.userid ?? "", api_key: "" });
+    } catch (err) {
+      message.error(
+        err instanceof Error ? err.message : t("adminUsers.zdxLoadFailed"),
+      );
+      setZdxTarget(null);
+    } finally {
+      setZdxLoading(false);
+    }
+  };
+
+  const onZdxSubmit = async (values: ZdxCredentialValues) => {
+    if (!zdxTarget) return;
+    setZdxSubmitting(true);
+    try {
+      await request(`/users/${zdxTarget.id}/zdx-credentials`, {
+        method: "PUT",
+        body: JSON.stringify({
+          api_key: values.api_key.trim(),
+          userid: values.userid.trim(),
+        }),
+      });
+      message.success(t("adminUsers.zdxSaveSuccess"));
+      setZdxTarget(null);
+      zdxForm.resetFields();
+      void refreshUsers();
+    } catch (err) {
+      message.error(
+        err instanceof Error ? err.message : t("adminUsers.zdxSaveFailed"),
+      );
+    } finally {
+      setZdxSubmitting(false);
+    }
+  };
+
+  const onZdxClear = async () => {
+    if (!zdxTarget) return;
+    setZdxSubmitting(true);
+    try {
+      await request(`/users/${zdxTarget.id}/zdx-credentials`, {
+        method: "DELETE",
+      });
+      message.success(t("adminUsers.zdxClearSuccess"));
+      setZdxTarget(null);
+      zdxForm.resetFields();
+      void refreshUsers();
+    } catch (err) {
+      message.error(
+        err instanceof Error ? err.message : t("adminUsers.zdxClearFailed"),
+      );
+    } finally {
+      setZdxSubmitting(false);
+    }
+  };
+
   return (
     <>
       <div className={styles.pageTop}>
@@ -1319,6 +1412,7 @@ export default function UsersListPanel() {
             setResetTarget(row);
             resetForm.resetFields();
           }}
+          onConfigureZdx={(row) => void openZdx(row)}
           onDelete={onDelete}
           onUnlockLogin={onUnlockLogin}
           nowSec={nowSec}
@@ -1391,6 +1485,7 @@ export default function UsersListPanel() {
                 const parts = [
                   row.sso_linked ? t("adminUsers.ssoBadge") : null,
                   row.has_password ? t("adminUsers.passwordBadge") : null,
+                  row.zdx_configured ? t("adminUsers.zdxConfigured") : null,
                 ].filter(Boolean);
                 return (
                   <span className={styles.userCellMuted}>
@@ -1499,6 +1594,16 @@ export default function UsersListPanel() {
                       aria-label={t("adminUsers.resetPassword")}
                     >
                       <KeyRound size={14} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip title={t("adminUsers.zdxConfigure")}>
+                    <button
+                      type="button"
+                      className={styles.userCardIconBtn}
+                      onClick={() => void openZdx(row)}
+                      aria-label={t("adminUsers.zdxConfigure")}
+                    >
+                      <ShieldCheck size={14} />
                     </button>
                   </Tooltip>
                   <Popconfirm
@@ -1971,6 +2076,97 @@ export default function UsersListPanel() {
             />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={
+          zdxTarget
+            ? t("adminUsers.zdxModalTitle", { username: zdxTarget.username })
+            : ""
+        }
+        open={zdxTarget !== null}
+        onCancel={() => {
+          setZdxTarget(null);
+          zdxForm.resetFields();
+        }}
+        onOk={() => zdxForm.submit()}
+        okText={t("adminUsers.zdxSave")}
+        cancelText={t("common.cancel")}
+        confirmLoading={zdxSubmitting || zdxLoading}
+        destroyOnHidden
+        footer={
+          zdxTarget ? (
+            <Space>
+              <Button
+                onClick={() => {
+                  setZdxTarget(null);
+                  zdxForm.resetFields();
+                }}
+              >
+                {t("common.cancel")}
+              </Button>
+              {zdxTarget.zdx_configured && (
+                <Button
+                  danger
+                  onClick={() => void onZdxClear()}
+                  loading={zdxSubmitting}
+                >
+                  {t("adminUsers.zdxClear")}
+                </Button>
+              )}
+              <Button
+                onClick={() => zdxForm.submit()}
+                loading={zdxSubmitting}
+                type="primary"
+              >
+                {t("adminUsers.zdxSave")}
+              </Button>
+            </Space>
+          ) : undefined
+        }
+      >
+        <Spin spinning={zdxLoading}>
+          <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+            {t("adminUsers.zdxCredentialHint")}
+          </Text>
+          <Form<ZdxCredentialValues>
+            form={zdxForm}
+            layout="vertical"
+            requiredMark={false}
+            onFinish={onZdxSubmit}
+          >
+            <Form.Item
+              label={t("adminUsers.zdxApiKey")}
+              name="api_key"
+              rules={[
+                {
+                  required: true,
+                  message: t("adminUsers.zdxApiKeyRequired"),
+                },
+              ]}
+            >
+              <Input.Password
+                placeholder={
+                  zdxTarget?.zdx_configured
+                    ? t("adminUsers.zdxApiKeyKeepHint")
+                    : undefined
+                }
+                autoComplete="new-password"
+                prefix={<KeyRound {...FIELD_ICON_PROPS} />}
+              />
+            </Form.Item>
+            <Form.Item
+              label={t("adminUsers.zdxUserid")}
+              name="userid"
+              extra={t("adminUsers.zdxUseridHint")}
+              rules={[
+                { required: true, message: t("adminUsers.zdxUseridRequired") },
+              ]}
+            >
+              <Input prefix={<User {...FIELD_ICON_PROPS} />} />
+            </Form.Item>
+          </Form>
+        </Spin>
       </Modal>
     </>
   );

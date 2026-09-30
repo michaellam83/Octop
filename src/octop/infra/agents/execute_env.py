@@ -97,6 +97,7 @@ def inject_agent_execute_env(
     row: AgentRow,
     workspace_dir: Path,
     cfg: dict[str, Any] | None = None,
+    extra_env: dict[str, str] | None = None,
 ) -> Any:
     """Fold Octop platform identity into shell/sandbox backend specs."""
     if not isinstance(backend, dict):
@@ -113,6 +114,7 @@ def inject_agent_execute_env(
             row=row,
             workspace_dir=workspace_dir,
             cfg=cfg,
+            extra_env=extra_env,
         )
         if injected is default:
             return backend
@@ -130,6 +132,8 @@ def inject_agent_execute_env(
             cfg=cfg,
         )
     )
+    if extra_env:
+        extra.update(extra_env)
 
     out = dict(backend)
     out["env"] = extra

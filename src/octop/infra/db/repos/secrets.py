@@ -39,3 +39,7 @@ class SecretRepo:
                 "UPDATE secrets SET v = ?, rotated_at = ? WHERE k = ?",
                 (new_value, now_ts(), k),
             )
+
+    def delete(self, k: str) -> None:
+        with self._db.transaction() as conn:
+            conn.execute("DELETE FROM secrets WHERE k = ?", (k,))

@@ -163,3 +163,22 @@ def test_inject_docker_only_sets_platform_defaults(tmp_path: Path, monkeypatch) 
     assert env["OCTOP_AGENT_ID"] == "agent-2"
     assert env["OCTOP_AUTH_DIR"] == str(ws / ".octop" / "auth")
     assert "GLOBAL_KEY" not in env
+
+
+def test_injects_user_scoped_runtime_environment(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("OCTOP_HOME", str(tmp_path))
+    paths = PathLayout(tmp_path)
+    paths.ensure_root()
+    ws = paths.ensure_agent_workspace("agent-zdx")
+
+    spec = inject_agent_execute_env(
+        {"type": "local_shell", "root_dir": "/", "virtual_mode": True},
+        paths=paths,
+        row=_row("agent-zdx"),
+        workspace_dir=ws,
+        cfg={"system_files_path": ".octop"},
+        extra_env={"ZDX_API_KEY": "sk-user", "ZDX_USERID": "oa.user"},
+    )
+
+    assert spec["env"]["ZDX_API_KEY"] == "sk-user"
+    assert spec["env"]["ZDX_USERID"] == "oa.user"

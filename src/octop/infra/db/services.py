@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from octop.config import OctopConfig
+from octop.infra.agents.zdx_credentials import ZdxCredentialStore
 from octop.infra.db.pool import DatabasePool
 from octop.infra.db.repos.agents import AgentRepo
 from octop.infra.db.repos.audit import AuditRepo
@@ -198,6 +199,10 @@ class SharedServices:
     @property
     def sso_repo(self) -> SsoRepo:
         return self.repos.sso_repo
+
+    @property
+    def zdx_credentials(self) -> ZdxCredentialStore:
+        return ZdxCredentialStore(self.repos.secret_repo)
 
 
 def build_shared_services(

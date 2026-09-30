@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -389,10 +391,11 @@ func unzipGreenFiles(files []*zip.File, dest string) error {
 func waitHealth(locale Locale, base string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	url := strings.TrimRight(base, "/") + "/api/health"
+	client := healthClient(base)
 	var lastErr error
 	var lastStatus int
 	for time.Now().Before(deadline) {
-		resp, err := http.Get(url)
+		resp, err := client.Get(url)
 		if err == nil {
 			lastStatus = resp.StatusCode
 			lastErr = nil
@@ -407,6 +410,30 @@ func waitHealth(locale Locale, base string, timeout time.Duration) error {
 		time.Sleep(400 * time.Millisecond)
 	}
 	return formatHealthWaitError(locale, base, timeout, lastErr, lastStatus)
+}
+
+func healthClient(base string) *http.Client {
+	client := &http.Client{Timeout: 5 * time.Second}
+	parsed, err := url.Parse(base)
+	if err != nil || !isPrivateHealthHost(parsed.Hostname()) {
+		client.Transport = http.DefaultTransport
+		return client
+	}
+
+	// A private company address should be reached directly. This avoids sending
+	// an RFC1918 health check through a workstation's HTTP proxy configuration.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	client.Transport = transport
+	return client
+}
+
+func isPrivateHealthHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && (ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast())
 }
 
 func formatWaitDuration(locale Locale, d time.Duration) string {

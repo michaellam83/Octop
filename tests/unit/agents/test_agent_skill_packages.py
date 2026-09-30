@@ -396,3 +396,24 @@ async def test_list_skill_summaries_relabels_mounted_package_skills(
     assert by_slug["pdf-reader"]["enabled"] is False
     assert by_slug["sheet-helper"]["kind"] == "workspace"
     assert by_slug["local-note"]["kind"] == "workspace"
+
+
+@pytest.mark.asyncio
+async def test_direct_managed_agent_has_no_harness_skill_catalog(
+    manager: AgentManager,
+) -> None:
+    """Direct managed agents do not use the ordinary Octop skill runtime."""
+    from unittest.mock import MagicMock
+
+    agent_id = "DIRECTSKILL1"
+    manager._repos.agent_repo.create(
+        agent_id=agent_id,
+        user_id=None,
+        name="Tonglian Fazai",
+        managed_type="tonglian_fazai",
+    )
+    fake_hm = MagicMock()
+    manager._harness_manager = fake_hm
+
+    assert await manager.list_skill_summaries(agent_id) == []
+    fake_hm.get_agent.assert_not_called()

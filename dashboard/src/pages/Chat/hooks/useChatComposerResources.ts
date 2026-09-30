@@ -37,6 +37,11 @@ export function useChatComposerResources(
   const currentUserId = user?.id ?? null;
   const { agents } = useAgent();
   const expert = agents.find((item) => item.agent_id === resolvedAgentId);
+  const capabilities = expert?.managed_capabilities;
+  const supportsConnectors = capabilities?.supports_connectors !== false;
+  const supportsKnowledgeBases =
+    capabilities?.supports_knowledge_bases !== false;
+  const supportsModelOverride = capabilities?.supports_model_override !== false;
   const expertMcpServers = expert?.mcp_servers;
   const expertKnowledgeBaseIds = expert?.knowledge_base_ids;
   const expertMcpKey = (expertMcpServers ?? []).join("\0");
@@ -97,7 +102,11 @@ export function useChatComposerResources(
       ? conversationOverrides[activeThreadId]
       : undefined;
     setSelectedModel(
-      local ? local.model : stickyModel || preferredModel || null,
+      supportsModelOverride
+        ? local
+          ? local.model
+          : stickyModel || preferredModel || null
+        : null,
     );
   }, [
     resolvedAgentId,
@@ -105,6 +114,7 @@ export function useChatComposerResources(
     stickyModel,
     preferredModel,
     conversationOverrides,
+    supportsModelOverride,
   ]);
 
   useEffect(() => {
@@ -143,6 +153,13 @@ export function useChatComposerResources(
 
   useEffect(() => {
     let cancelled = false;
+    if (!supportsConnectors) {
+      setChatConnectors([]);
+      setSelectedConnectors([]);
+      return () => {
+        cancelled = true;
+      };
+    }
     const loadConnectors = () => {
       void connectorsApi.listInstances().then((instances) => {
         if (cancelled) return;
@@ -191,10 +208,24 @@ export function useChatComposerResources(
       window.removeEventListener("focus", onFocus);
       window.removeEventListener(CONNECTORS_CHANGED_EVENT, loadConnectors);
     };
-  }, [resolvedAgentId, currentUserId, isNewSession, expertMcpKey]);
+  }, [
+    resolvedAgentId,
+    currentUserId,
+    isNewSession,
+    expertMcpKey,
+    expertMcpServers,
+    supportsConnectors,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
+    if (!supportsKnowledgeBases) {
+      setChatKnowledgeBases(undefined);
+      setSelectedKnowledgeBaseIds([]);
+      return () => {
+        cancelled = true;
+      };
+    }
     const pendingId = peekPendingAttachKnowledgeBaseId();
     if (isNewSession && !composerTouchedRef.current) {
       setSelectedKnowledgeBaseIds(pendingId ? [pendingId] : []);
@@ -256,10 +287,23 @@ export function useChatComposerResources(
     return () => {
       cancelled = true;
     };
-  }, [resolvedAgentId, currentUserId, isNewSession, expertKbKey]);
+  }, [
+    resolvedAgentId,
+    currentUserId,
+    isNewSession,
+    expertKbKey,
+    expertKnowledgeBaseIds,
+    supportsKnowledgeBases,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
+    if (!supportsModelOverride) {
+      setAvailableModels([]);
+      return () => {
+        cancelled = true;
+      };
+    }
     const loadModels = () => {
       void providerApi
         .listResolvedModels()
@@ -277,7 +321,7 @@ export function useChatComposerResources(
       cancelled = true;
       window.removeEventListener("focus", onFocus);
     };
-  }, []);
+  }, [supportsModelOverride]);
 
   useEffect(() => {
     let cancelled = false;
@@ -402,7 +446,7 @@ export function useChatComposerResources(
     handleReasoningChange,
     selectedConnectors,
     selectedKnowledgeBaseIds,
-    chatConnectors,
+    chatConnectors: supportsConnectors ? chatConnectors : undefined,
     chatKnowledgeBases,
     availableModels,
     activeModelRef,

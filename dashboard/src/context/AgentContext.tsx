@@ -59,6 +59,24 @@ export interface OctopAgent {
   unread_count?: number;
   /** True while BOOTSTRAP.md onboarding has not written ``.bootstrapped`` yet. */
   bootstrap_pending?: boolean;
+  /** System-managed agent type, when provisioned by Octop. */
+  managed_type?: string | null;
+  /** Managed agents cannot have their configuration changed or deleted. */
+  config_locked?: boolean;
+  template_version?: string | null;
+  managed_capabilities?: {
+    execution_mode: "harness" | "direct_model";
+    direct_model: boolean;
+    supports_channels: boolean;
+    supports_connectors: boolean;
+    supports_harness_tools: boolean;
+    supports_skills: boolean;
+    supports_knowledge_bases: boolean;
+    supports_workspace: boolean;
+    supports_model_override: boolean;
+    supports_subagents: boolean;
+    qq_delivery_mode: "invoke" | "stream";
+  };
 }
 
 interface AgentContextValue {
@@ -89,6 +107,13 @@ export interface EnabledExpertsOptions {
    * clear path to ``/experts`` to restart it.
    */
   pinActive?: boolean;
+}
+
+/** The managed direct-model expert is not a Harness expert target. */
+export function isTonglianFazaiAgent(
+  agent: Pick<OctopAgent, "managed_type"> | null | undefined,
+): boolean {
+  return agent?.managed_type === "tonglian_fazai";
 }
 
 const STORAGE_KEY = "octop:active-agent";
@@ -144,6 +169,26 @@ export function projectChatAgentOption(agent: OctopAgent): {
     is_owner: Boolean(agent.is_owner),
     owner_username: agent.owner_username ?? null,
   };
+}
+
+/** Pick a usable initial expert instead of restoring a stale failed selection. */
+export function selectInitialAgent(
+  agents: OctopAgent[],
+  storedAgentId: string | null,
+): OctopAgent | null {
+  const stored = storedAgentId
+    ? agents.find((agent) => agent.agent_id === storedAgentId)
+    : undefined;
+  if (stored?.state === "running") return stored;
+
+  const running = agents.filter((agent) => agent.state === "running");
+  return (
+    running.find((agent) => agent.managed_type === "tonglian_fazai") ??
+    running[0] ??
+    stored ??
+    agents[0] ??
+    null
+  );
 }
 
 const defaultValue: AgentContextValue = {
@@ -237,14 +282,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
         // Reconcile selection with what the server reports.
         const stored = localStorage.getItem(STORAGE_KEY);
-        const haveStored = stored && list.some((a) => a.agent_id === stored);
-        if (haveStored) {
-          persistAndApply(stored);
-        } else if (list.length > 0) {
-          persistAndApply(list[0].agent_id);
-        } else {
-          persistAndApply(null);
-        }
+        persistAndApply(selectInitialAgent(list, stored)?.agent_id ?? null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load agents");
         // On failure, leave whatever previous state was — don't blow away

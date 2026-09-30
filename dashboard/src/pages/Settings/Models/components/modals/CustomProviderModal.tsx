@@ -175,6 +175,12 @@ export function CustomProviderModal({
         return entry;
       });
 
+      if (modelEntries.length === 0) {
+        message.warning(t("models.providerNeedModel"));
+        setSaving(false);
+        return;
+      }
+
       await request<ProviderRow>(apiPrefix, {
         method: "POST",
         body: JSON.stringify({

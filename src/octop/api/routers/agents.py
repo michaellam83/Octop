@@ -21,6 +21,7 @@ from octop.infra.agents.avatar import (
     read_workspace_avatar,
     write_workspace_avatar,
 )
+from octop.infra.agents.managed_runtime import capabilities_for_row
 from octop.infra.agents.profile import (
     id_list_from_row,
     parse_config_json,
@@ -121,6 +122,14 @@ def _owner_username(server: Any, row: Any) -> str | None:
     return owner.username if owner is not None else None
 
 
+def _assert_mutable_agent(row: Any) -> None:
+    if bool(int(getattr(row, "config_locked", 0) or 0)):
+        raise OctopError(
+            ErrorCode.FORBIDDEN,
+            "system-managed agent configuration is locked",
+        )
+
+
 def _row_dict(
     row: Any,
     *,
@@ -169,6 +178,10 @@ def _row_dict(
         "published_expert_id": row.published_expert_id,
         "welcome_message": welcome_from_row(row),
         "is_shared": bool(int(getattr(row, "is_shared", 0) or 0)),
+        "managed_type": getattr(row, "managed_type", None),
+        "config_locked": bool(int(getattr(row, "config_locked", 0) or 0)),
+        "template_version": getattr(row, "template_version", None),
+        "managed_capabilities": capabilities_for_row(row).as_dict(),
         "is_owner": row.user_id is not None and row.user_id == viewer_user_id,
         "owner_username": owner_username,
         **agent_runtime_values(cfg),
@@ -356,6 +369,7 @@ async def patch_agent(
     if row is None:
         raise OctopError(ErrorCode.AGENT_NOT_FOUND, f"agent {agent_id!r} not found")
     _assert_agent_owner(row, user)
+    _assert_mutable_agent(row)
     if body.config is not None and isinstance(body.config, dict):
         assert_user_backend_root_dirs(
             user,
@@ -422,6 +436,7 @@ async def delete_agent(
     if row is None:
         raise OctopError(ErrorCode.AGENT_NOT_FOUND, f"agent {agent_id!r} not found")
     _assert_agent_owner(row, user)
+    _assert_mutable_agent(row)
     await server.app_runtime.agent_registry.delete(agent_id)
 
 
@@ -435,6 +450,10 @@ async def upload_agent_avatar(
     """Store an uploaded image in the agent workspace and set ``icon_url``."""
     data = await file.read()
     workspace = await require_agent_workspace(agent_id, user=user, server=server, owner_only=True)
+    row = server.app_runtime.agent_registry.get_row(agent_id)
+    if row is None:
+        raise OctopError(ErrorCode.AGENT_NOT_FOUND, f"agent {agent_id!r} not found")
+    _assert_mutable_agent(row)
     await write_workspace_avatar(workspace, data)
     icon_url = agent_avatar_api_path(agent_id)
     assert server.app_runtime is not None
@@ -476,8 +495,12 @@ async def delete_agent_avatar(
 ) -> Response:
     """Remove the workspace avatar file and clear ``icon_url``."""
     workspace = await require_agent_workspace(agent_id, user=user, server=server, owner_only=True)
-    await delete_workspace_avatar(workspace)
     assert server.app_runtime is not None
+    row = server.app_runtime.agent_registry.get_row(agent_id)
+    if row is None:
+        raise OctopError(ErrorCode.AGENT_NOT_FOUND, f"agent {agent_id!r} not found")
+    _assert_mutable_agent(row)
+    await delete_workspace_avatar(workspace)
     server.app_runtime.agent_registry.set_icon_url(agent_id, None)
     return Response(status_code=204)
 

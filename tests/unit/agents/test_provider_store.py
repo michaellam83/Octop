@@ -90,6 +90,45 @@ def test_build_harness_configs_skips_missing_credentials(store: ProviderStore) -
     assert store.has_usable_providers() is False
 
 
+def test_explicit_managed_zdx_provider_is_not_available_to_normal_agents(
+    store: ProviderStore,
+) -> None:
+    store._provider_repo.create(
+        name="tonglian-zdx",
+        kind="openai",
+        base_url="https://ai.allinpay.com/v1/",
+        api_key="user-key",
+        models_json=json.dumps([{"id": "auto", "name": "auto"}]),
+    )
+    store._provider_repo.create(
+        name="external",
+        kind="openai",
+        base_url="https://api.example.com/v1",
+        api_key="sk-test",
+        models_json=json.dumps([{"id": "m1", "name": "m1"}]),
+    )
+
+    assert store.is_model_ref_usable("tonglian-zdx/auto") is False
+    assert store.resolve_first_model_ref() == "external/m1"
+    assert [item.id for item in store.build_harness_configs()] == ["external"]
+
+
+def test_admin_openai_provider_at_zdx_endpoint_is_available_to_normal_agents(
+    store: ProviderStore,
+) -> None:
+    store._provider_repo.create(
+        name="智多星华为",
+        kind="openai",
+        base_url="https://ai.allinpay.com/v1/",
+        api_key="admin-key",
+        models_json=json.dumps([{"id": "auto", "name": "auto"}]),
+    )
+
+    assert store.is_model_ref_usable("智多星华为/auto") is True
+    assert store.resolve_first_model_ref() == "智多星华为/auto"
+    assert [item.id for item in store.build_harness_configs()] == ["智多星华为"]
+
+
 def test_has_usable_providers_requires_enabled_model(store: ProviderStore) -> None:
     store._provider_repo.create(
         name="empty-models",

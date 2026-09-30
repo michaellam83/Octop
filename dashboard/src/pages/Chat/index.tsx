@@ -60,6 +60,7 @@ import { useSkills } from "../Agent/Skills/useSkills";
 import { useChatSubagents } from "./hooks/useChatSubagents";
 import {
   useAgent,
+  isTonglianFazaiAgent,
   selectEnabledExperts,
   projectChatAgentOption,
 } from "../../context/AgentContext";
@@ -219,12 +220,28 @@ function ChatPageInner() {
 
   const { quickCards: expertQuickCards, welcomeSuffix } =
     useExpertChatWelcome(activeAgent);
-  const { skills: chatSkills } = useSkills(
-    chatSkillCatalogAgentId(resolvedAgentId, agentChatReady, agentsLoading),
-  );
-  const chatSubagents = useChatSubagents(
-    chatSkillCatalogAgentId(resolvedAgentId, agentChatReady, agentsLoading),
-  );
+  const supportsWorkspace =
+    activeAgent?.managed_capabilities?.supports_workspace !== false;
+  const isTonglianFazai = isTonglianFazaiAgent(activeAgent);
+  const supportsHarnessTools =
+    activeAgent?.managed_capabilities?.supports_harness_tools !== false;
+  // Managed direct-model experts do not use the generic Harness skill or
+  // subagent runtime. Their capability declaration keeps this independent of
+  // the concrete managed expert type.
+  const chatCatalogAgentId =
+    activeAgent?.managed_capabilities?.supports_skills === false
+      ? null
+      : chatSkillCatalogAgentId(resolvedAgentId, agentChatReady, agentsLoading);
+  const { skills: fetchedChatSkills } = useSkills(chatCatalogAgentId);
+  const chatSkills =
+    activeAgent?.managed_capabilities?.supports_skills === false
+      ? undefined
+      : fetchedChatSkills;
+  const fetchedChatSubagents = useChatSubagents(chatCatalogAgentId);
+  const chatSubagents =
+    activeAgent?.managed_capabilities?.supports_subagents === false
+      ? undefined
+      : fetchedChatSubagents;
   const [agentProfileOpen, setAgentProfileOpen] = useState(false);
   const [workspaceDrawerOpen, setWorkspaceDrawerOpen] = useState(false);
   const [trajectoryDrawerOpen, setTrajectoryDrawerOpen] = useState(false);
@@ -337,6 +354,7 @@ function ChatPageInner() {
     messages,
     () => refreshBrowserRef.current(),
   );
+  const browserToolAvailable = supportsHarnessTools && hasBrowserTool;
 
   const {
     sessionId: browserSessionId,
@@ -344,7 +362,7 @@ function ChatPageInner() {
     controlOwner: browserControlOwner,
     environment: browserEnvironment,
     refresh: refreshBrowserSession,
-  } = useBrowserSessionState(threadId, hasBrowserTool);
+  } = useBrowserSessionState(threadId, browserToolAvailable);
 
   refreshBrowserRef.current = refreshBrowserSession;
 
@@ -526,9 +544,9 @@ function ChatPageInner() {
   // unloaded harness and silently fail.
   const chatAgentOptionsPickable = useMemo(
     () =>
-      selectEnabledExperts(agents, null, { pinActive: false }).map(
-        projectChatAgentOption,
-      ),
+      selectEnabledExperts(agents, null, { pinActive: false })
+        .filter((agent) => !isTonglianFazaiAgent(agent))
+        .map(projectChatAgentOption),
     [agents],
   );
 
@@ -1071,19 +1089,21 @@ function ChatPageInner() {
                     >
                       <GraduationCap size={18} strokeWidth={1.8} />
                     </button>
-                    <button
-                      className={styles.menuBtn}
-                      onClick={() => setWorkspaceDrawerOpen(true)}
-                      disabled={!agentChatReady}
-                      title={
-                        agentChatReady
-                          ? t("chat.openWorkspace", "工作区")
-                          : t("workspace.requiresRunning")
-                      }
-                      aria-label={t("chat.openWorkspace", "工作区")}
-                    >
-                      <FolderOpen size={18} strokeWidth={1.8} />
-                    </button>
+                    {supportsWorkspace && (
+                      <button
+                        className={styles.menuBtn}
+                        onClick={() => setWorkspaceDrawerOpen(true)}
+                        disabled={!agentChatReady}
+                        title={
+                          agentChatReady
+                            ? t("chat.openWorkspace", "工作区")
+                            : t("workspace.requiresRunning")
+                        }
+                        aria-label={t("chat.openWorkspace", "工作区")}
+                      >
+                        <FolderOpen size={18} strokeWidth={1.8} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1219,27 +1239,29 @@ function ChatPageInner() {
                           </button>
                         </span>
                       </Tooltip>
-                      <Tooltip
-                        title={
-                          agentChatReady
-                            ? t("chat.openWorkspace", "工作区")
-                            : t("workspace.requiresRunning")
-                        }
-                        mouseEnterDelay={0.35}
-                        placement="left"
-                      >
-                        <span className={styles.chatFloatBtnWrap}>
-                          <button
-                            type="button"
-                            className={styles.chatFloatBtn}
-                            disabled={!agentChatReady}
-                            onClick={() => setWorkspaceDrawerOpen(true)}
-                            aria-label={t("chat.openWorkspace", "工作区")}
-                          >
-                            <FolderOpen size={20} strokeWidth={2.1} />
-                          </button>
-                        </span>
-                      </Tooltip>
+                      {supportsWorkspace && (
+                        <Tooltip
+                          title={
+                            agentChatReady
+                              ? t("chat.openWorkspace", "工作区")
+                              : t("workspace.requiresRunning")
+                          }
+                          mouseEnterDelay={0.35}
+                          placement="left"
+                        >
+                          <span className={styles.chatFloatBtnWrap}>
+                            <button
+                              type="button"
+                              className={styles.chatFloatBtn}
+                              disabled={!agentChatReady}
+                              onClick={() => setWorkspaceDrawerOpen(true)}
+                              aria-label={t("chat.openWorkspace", "工作区")}
+                            >
+                              <FolderOpen size={20} strokeWidth={2.1} />
+                            </button>
+                          </span>
+                        </Tooltip>
+                      )}
                     </>
                   )}
                   {!sharedExpertViewer && panelFilePaths.length > 0 && (
@@ -1319,51 +1341,53 @@ function ChatPageInner() {
                       </span>
                     </Tooltip>
                   )}
-                  <Tooltip
-                    title={
-                      browserSessionId
-                        ? t("browserWorkspace.browserStatusActive", {
-                            owner:
-                              browserControlOwner === "agent"
-                                ? t("browserWorkspace.agentControl")
-                                : t("browserWorkspace.userTakeover"),
-                          })
-                        : t("browserWorkspace.browserStatusIdle")
-                    }
-                    mouseEnterDelay={0.35}
-                    placement="left"
-                  >
-                    <span className={styles.chatFloatBtnWrap}>
-                      <button
-                        type="button"
-                        className={[
-                          styles.browserStatusBtn,
-                          browserSessionId ? styles.browserStatusActive : "",
-                          browserSessionId &&
-                          (browserSessionState === "awaiting_user_auth" ||
-                            browserSessionState === "authenticating")
-                            ? styles.browserStatusAuth
-                            : "",
-                          browserSessionId && browserControlOwner === "user"
-                            ? styles.browserStatusTakeover
-                            : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
-                        onClick={() => void handleToggleBrowserPanel()}
-                        aria-label={t("chat.openBrowser")}
-                      >
-                        <Globe size={20} strokeWidth={2.1} />
-                        {browserSessionId && (
-                          <span
-                            className={`${styles.browserStatusDot} ${
-                              styles[`browserStatus_${browserControlOwner}`]
-                            }`}
-                          />
-                        )}
-                      </button>
-                    </span>
-                  </Tooltip>
+                  {supportsHarnessTools && (
+                    <Tooltip
+                      title={
+                        browserSessionId
+                          ? t("browserWorkspace.browserStatusActive", {
+                              owner:
+                                browserControlOwner === "agent"
+                                  ? t("browserWorkspace.agentControl")
+                                  : t("browserWorkspace.userTakeover"),
+                            })
+                          : t("browserWorkspace.browserStatusIdle")
+                      }
+                      mouseEnterDelay={0.35}
+                      placement="left"
+                    >
+                      <span className={styles.chatFloatBtnWrap}>
+                        <button
+                          type="button"
+                          className={[
+                            styles.browserStatusBtn,
+                            browserSessionId ? styles.browserStatusActive : "",
+                            browserSessionId &&
+                            (browserSessionState === "awaiting_user_auth" ||
+                              browserSessionState === "authenticating")
+                              ? styles.browserStatusAuth
+                              : "",
+                            browserSessionId && browserControlOwner === "user"
+                              ? styles.browserStatusTakeover
+                              : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                          onClick={() => void handleToggleBrowserPanel()}
+                          aria-label={t("chat.openBrowser")}
+                        >
+                          <Globe size={20} strokeWidth={2.1} />
+                          {browserSessionId && (
+                            <span
+                              className={`${styles.browserStatusDot} ${
+                                styles[`browserStatus_${browserControlOwner}`]
+                              }`}
+                            />
+                          )}
+                        </button>
+                      </span>
+                    </Tooltip>
+                  )}
                 </div>
               )}
 
@@ -1417,9 +1441,13 @@ function ChatPageInner() {
               onKnowledgeBaseIdsChange={handleKnowledgeBaseIdsChange}
               availableSkills={chatSkills}
               availableAgents={chatAgentOptions}
-              availableExperts={chatAgentOptionsPickable}
+              availableExperts={
+                isTonglianFazai ? [] : chatAgentOptionsPickable
+              }
               availableSubagents={chatSubagents}
               agentId={resolvedAgentId}
+              supportsShortcuts={!isTonglianFazai}
+              supportsAttachments={supportsWorkspace}
               threadId={activeThreadId}
               defaultModel={activeAgent?.default_model ?? null}
               contextUsedTokens={contextUsedTokens}

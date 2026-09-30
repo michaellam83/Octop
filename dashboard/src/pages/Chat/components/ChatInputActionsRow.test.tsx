@@ -59,4 +59,33 @@ describe("ChatInputActionsRow compact pickers", () => {
     });
     expect(document.querySelector(".ant-drawer-content")).toBeNull();
   });
+
+  it("hides shortcuts when the active expert does not support them", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <ChatInputActionsRow
+          isMobile={false}
+          isStreaming={false}
+          canSend={false}
+          text=""
+          polishing={false}
+          uploading={false}
+          recording={false}
+          transcribing={false}
+          supportsShortcuts={false}
+          slashPickerGroups={null}
+          slashMenuItems={[]}
+          onSlashShortcutSelect={vi.fn()}
+          onFileSelect={vi.fn()}
+          onNewChat={vi.fn()}
+          onPolish={vi.fn()}
+          onToggleVoice={vi.fn()}
+          onCancel={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(container.querySelector("svg.lucide-zap")).toBeNull();
+  });
 });

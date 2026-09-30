@@ -277,6 +277,7 @@ export const AgentCard = memo(function AgentCard({
   const chatReady = isAgentChatReady(localState);
   const sharedViewer = isSharedExpertViewer(agent);
   const isOwner = agent.is_owner !== false;
+  const isManaged = Boolean(agent.config_locked || agent.managed_type);
 
   return (
     <>
@@ -311,6 +312,9 @@ export const AgentCard = memo(function AgentCard({
                       })
                     : t("experts.share.badge")}
                 </Tag>
+              )}
+              {isManaged && (
+                <Tag color="geekblue">{t("experts.managedAgent")}</Tag>
               )}
             </div>
             <div className={styles.agentCardIdRow}>
@@ -398,25 +402,6 @@ export const AgentCard = memo(function AgentCard({
         <div className={styles.agentCard2Footer}>
           {isOwner && (
             <>
-              <Tooltip
-                title={
-                  chatReady
-                    ? t("pageShell.workspace.title")
-                    : t("workspace.requiresRunning")
-                }
-                mouseEnterDelay={0.5}
-              >
-                <button
-                  type="button"
-                  className={styles.agentCard2EditBtn}
-                  disabled={!chatReady}
-                  onClick={() => setWorkspaceDrawerOpen(true)}
-                  aria-label={t("pageShell.workspace.title")}
-                >
-                  <FolderOpen size={13} />
-                </button>
-              </Tooltip>
-
               <Tooltip title={t("experts.reloadAgent")} mouseEnterDelay={0.5}>
                 <button
                   type="button"
@@ -428,59 +413,84 @@ export const AgentCard = memo(function AgentCard({
                   <RefreshCw size={13} />
                 </button>
               </Tooltip>
-
-              <Tooltip title={t("common.edit", "Edit")} mouseEnterDelay={0.5}>
-                <button
-                  type="button"
-                  className={styles.agentCard2EditBtn}
-                  onClick={() => onEdit(agent.agent_id)}
-                  aria-label={t("common.edit", "Edit")}
-                >
-                  <Pencil size={13} />
-                </button>
-              </Tooltip>
-
-              <Popconfirm
-                title={t("experts.confirmDelete", { name: agent.name })}
-                description={t("experts.confirmDeleteHint")}
-                onConfirm={() => void handleDelete()}
-                okText={t("common.delete", "Delete")}
-                cancelText={t("common.cancel")}
-                okButtonProps={{ danger: true }}
-              >
-                <Tooltip
-                  title={t("common.delete", "Delete")}
-                  mouseEnterDelay={0.5}
-                >
-                  <button
-                    type="button"
-                    className={styles.agentCard2DelBtn}
-                    aria-label={t("common.delete", "Delete")}
+              {!isManaged && (
+                <>
+                  <Tooltip
+                    title={
+                      chatReady
+                        ? t("pageShell.workspace.title")
+                        : t("workspace.requiresRunning")
+                    }
+                    mouseEnterDelay={0.5}
                   >
-                    <Trash2 size={13} />
-                  </button>
-                </Tooltip>
-              </Popconfirm>
+                    <button
+                      type="button"
+                      className={styles.agentCard2EditBtn}
+                      disabled={!chatReady}
+                      onClick={() => setWorkspaceDrawerOpen(true)}
+                      aria-label={t("pageShell.workspace.title")}
+                    >
+                      <FolderOpen size={13} />
+                    </button>
+                  </Tooltip>
 
-              {onPublishedChange && (
-                <PublishTemplateButton
-                  agent={agent}
-                  published={publishedExpert}
-                  onChanged={onPublishedChange}
-                  buttonClassName={styles.agentCard2EditBtn}
-                />
+                  <Tooltip
+                    title={t("common.edit", "Edit")}
+                    mouseEnterDelay={0.5}
+                  >
+                    <button
+                      type="button"
+                      className={styles.agentCard2EditBtn}
+                      onClick={() => onEdit(agent.agent_id)}
+                      aria-label={t("common.edit", "Edit")}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  </Tooltip>
+
+                  <Popconfirm
+                    title={t("experts.confirmDelete", { name: agent.name })}
+                    description={t("experts.confirmDeleteHint")}
+                    onConfirm={() => void handleDelete()}
+                    okText={t("common.delete", "Delete")}
+                    cancelText={t("common.cancel")}
+                    okButtonProps={{ danger: true }}
+                  >
+                    <Tooltip
+                      title={t("common.delete", "Delete")}
+                      mouseEnterDelay={0.5}
+                    >
+                      <button
+                        type="button"
+                        className={styles.agentCard2DelBtn}
+                        aria-label={t("common.delete", "Delete")}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </Tooltip>
+                  </Popconfirm>
+
+                  {onPublishedChange && (
+                    <PublishTemplateButton
+                      agent={agent}
+                      published={publishedExpert}
+                      onChanged={onPublishedChange}
+                      buttonClassName={styles.agentCard2EditBtn}
+                    />
+                  )}
+
+                  <AgentMoreActions
+                    buttonClassName={styles.agentCard2EditBtn}
+                    onSkills={() => setSkillCatalogOpen(true)}
+                    onSubagents={openSubagentCatalog}
+                    onTools={() => setToolSettingsOpen(true)}
+                    onPlugins={() => setPluginCatalogOpen(true)}
+                    onMbti={() => setMbtiCatalogOpen(true)}
+                    onMemory={() => setMemoryCatalogOpen(true)}
+                    onChannels={() => setChannelCatalogOpen(true)}
+                  />
+                </>
               )}
-
-              <AgentMoreActions
-                buttonClassName={styles.agentCard2EditBtn}
-                onSkills={() => setSkillCatalogOpen(true)}
-                onSubagents={openSubagentCatalog}
-                onTools={() => setToolSettingsOpen(true)}
-                onPlugins={() => setPluginCatalogOpen(true)}
-                onMbti={() => setMbtiCatalogOpen(true)}
-                onMemory={() => setMemoryCatalogOpen(true)}
-                onChannels={() => setChannelCatalogOpen(true)}
-              />
             </>
           )}
 

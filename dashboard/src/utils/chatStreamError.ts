@@ -161,6 +161,21 @@ export function isChatStreamError(message: string | null | undefined): boolean {
   return classifyChatStreamError(message) !== null;
 }
 
+/**
+ * Harness emits this prefix when ModelRetryMiddleware exhausts its retries and
+ * returns a synthetic assistant message instead of an explicit error frame.
+ * Do not use the broader stream classifier here: normal model answers may
+ * legitimately mention quota or balance guidance.
+ */
+export function isModelRetryFailureMessage(
+  message: string | null | undefined,
+): boolean {
+  if (!message) return false;
+  return normalizeMessage(message)
+    .toLowerCase()
+    .includes("model call failed after");
+}
+
 /** Localized guidance for known failures; otherwise the original text. */
 export function formatChatStreamError(
   message: string | null | undefined,

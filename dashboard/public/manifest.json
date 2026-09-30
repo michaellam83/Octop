@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Octop",
-  "short_name": "Octop",
-  "description": "Smarter self-hosted AI assistant — multi-user, multi-agent",
+  "name": "通联AI",
+  "short_name": "通联AI",
+  "description": "通联AI企业工作台",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

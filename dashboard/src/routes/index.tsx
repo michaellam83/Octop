@@ -27,6 +27,7 @@ const AdvancedSettingsPage = lazy(
 );
 const AdminStoragePage = lazy(() => import("../pages/Admin/Storage"));
 const AdminPluginsPage = lazy(() => import("../pages/Admin/Plugins"));
+const ManagedExpertsPage = lazy(() => import("../pages/Admin/ManagedExperts"));
 const AgentConfigPage = lazy(() => import("../pages/Agent/Config"));
 
 // Misc
@@ -88,6 +89,7 @@ export const pathToKey: Record<string, string> = {
   "/admin/users": "admin-users",
   "/admin/backend": "admin-storage",
   "/admin/plugins": "admin-plugins",
+  "/admin/managed-experts": "admin-managed-experts",
   "/admin/advanced": "admin-advanced",
   "/admin/security": "admin-security",
 };
@@ -230,6 +232,7 @@ export const routeConfigs: RouteConfig[] = [
   },
   { path: "/admin/agents", element: <Navigate to="/admin/users" replace /> },
   { path: "/admin/plugins", element: <AdminPluginsPage /> },
+  { path: "/admin/managed-experts", element: <ManagedExpertsPage /> },
   { path: "/admin/advanced", element: <AdvancedSettingsPage /> },
   { path: "/admin/security", element: <AdminSecurityPage /> },
   {

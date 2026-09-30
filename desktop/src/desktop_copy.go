@@ -9,12 +9,12 @@ const (
 	copyStatusReady            = "status.ready"
 	copyStatusUsingRuntime     = "status.using_runtime"
 	copyStatusBackupDatabase   = "status.backup_database"
-	copyStatusInstallingUpdate  = "status.installing_update"
-	copyStatusUpdatingRuntime   = "status.updating_runtime"
-	copyStatusFirstExtract      = "status.first_extract"
-	copyStatusUpdateFailedKeep  = "status.update_failed_keep"
-	copyErrorBackupFailed       = "error.backup_failed"
-	copyErrorUpgradeFailed      = "error.upgrade_failed"
+	copyStatusInstallingUpdate = "status.installing_update"
+	copyStatusUpdatingRuntime  = "status.updating_runtime"
+	copyStatusFirstExtract     = "status.first_extract"
+	copyStatusUpdateFailedKeep = "status.update_failed_keep"
+	copyErrorBackupFailed      = "error.backup_failed"
+	copyErrorUpgradeFailed     = "error.upgrade_failed"
 	copyWait1Minute            = "wait.1_minute"
 	copyWaitNMinutes           = "wait.n_minutes"
 	copyWait1Second            = "wait.1_second"
@@ -22,14 +22,16 @@ const (
 	copyHealthNotReady5xx      = "health.not_ready_5xx"
 	copyHealthNotReadyConnect  = "health.not_ready_connect"
 	copyHealthNotReady         = "health.not_ready"
+	copyRetryConnection        = "action.retry_connection"
+	copyOpenConnectionBrowser  = "action.open_connection_browser"
 )
 
 var desktopCopy = map[Locale]map[string]string{
 	LocaleEN: {
-		copyStatusConnecting:       "Connecting to Octop…",
+		copyStatusConnecting:       "Connecting to AllinpayAI…",
 		copyStatusCheckingRuntime:  "Checking the runtime…",
-		copyStatusStartingService:  "Starting the Octop service…",
-		copyStatusReady:            "Octop is ready",
+		copyStatusStartingService:  "Starting the AllinpayAI service…",
+		copyStatusReady:            "AllinpayAI is ready",
 		copyStatusUsingRuntime:     "Using the existing runtime…",
 		copyStatusBackupDatabase:   "Desktop update %s found. Backing up the database…",
 		copyStatusInstallingUpdate: "Installing the bundled desktop update…",
@@ -42,15 +44,17 @@ var desktopCopy = map[Locale]map[string]string{
 		copyWaitNMinutes:           "%d minutes",
 		copyWait1Second:            "1 second",
 		copyWaitNSeconds:           "%d seconds",
-		copyHealthNotReady5xx:      "Octop did not become ready within %s (%s). The service responded but is not ready yet. Try again, or check the terminal logs.",
-		copyHealthNotReadyConnect:  "Octop did not become ready within %s (%s). Could not connect — make sure Octop is running.",
-		copyHealthNotReady:         "Octop did not become ready within %s (%s). Make sure Octop is running at this address, or check the terminal logs.",
+		copyHealthNotReady5xx:      "AllinpayAI did not become ready within %s (%s). The service responded but is not ready yet. Try again, or check the terminal logs.",
+		copyHealthNotReadyConnect:  "AllinpayAI did not become ready within %s (%s). Could not connect — make sure AllinpayAI is running.",
+		copyHealthNotReady:         "AllinpayAI did not become ready within %s (%s). Make sure AllinpayAI is running at this address, or check the terminal logs.",
+		copyRetryConnection:        "Retry connection",
+		copyOpenConnectionBrowser:  "Open address in browser",
 	},
 	LocaleZH: {
-		copyStatusConnecting:       "正在连接 Octop…",
+		copyStatusConnecting:       "正在连接 AllinpayAI…",
 		copyStatusCheckingRuntime:  "正在检查运行环境…",
-		copyStatusStartingService:  "正在启动 Octop 服务…",
-		copyStatusReady:            "Octop 已就绪",
+		copyStatusStartingService:  "正在启动 AllinpayAI 服务…",
+		copyStatusReady:            "AllinpayAI 已就绪",
 		copyStatusUsingRuntime:     "正在使用已有运行环境…",
 		copyStatusBackupDatabase:   "发现客户端新版 %s，正在备份数据库…",
 		copyStatusInstallingUpdate: "正在安装客户端内置新版…",
@@ -63,9 +67,11 @@ var desktopCopy = map[Locale]map[string]string{
 		copyWaitNMinutes:           "%d 分钟",
 		copyWait1Second:            "1 秒",
 		copyWaitNSeconds:           "%d 秒",
-		copyHealthNotReady5xx:      "Octop 服务未在%s内就绪（%s）。服务已响应但尚未就绪，请稍后再试，或查看终端日志。",
-		copyHealthNotReadyConnect:  "Octop 服务未在%s内就绪（%s）。目前无法连接该地址，请确认 Octop 正在运行。",
-		copyHealthNotReady:         "Octop 服务未在%s内就绪（%s）。请确认本机已启动 Octop，且地址、端口正确；也可查看终端日志。",
+		copyHealthNotReady5xx:      "AllinpayAI 服务未在%s内就绪（%s）。服务已响应但尚未就绪，请稍后再试，或查看终端日志。",
+		copyHealthNotReadyConnect:  "AllinpayAI 服务未在%s内就绪（%s）。目前无法连接该地址，请确认 AllinpayAI 正在运行。",
+		copyHealthNotReady:         "AllinpayAI 服务未在%s内就绪（%s）。请确认本机已启动 AllinpayAI，且地址、端口正确；也可查看终端日志。",
+		copyRetryConnection:        "重试连接",
+		copyOpenConnectionBrowser:  "在浏览器中打开地址",
 	},
 }
 

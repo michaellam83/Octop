@@ -12,6 +12,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field, fields, replace
+from datetime import datetime, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -22,6 +23,7 @@ from harness_agent.security.models import SecurityPolicy
 from octop.i18n.domains.agents import NO_MODELS_CONFIGURED, format_agent_start_error
 from octop.infra.agents.acp_settings import ACPSettingsStore
 from octop.infra.agents.langfuse import LangfuseSettings, LangfuseSettingsStore
+from octop.infra.agents.managed_runtime import is_direct_model_agent
 from octop.infra.agents.media_generation import (
     MediaGenerationSettings,
     MediaGenerationSettingsStore,
@@ -296,6 +298,9 @@ class AgentCreateSpec:
     welcome_message: str | None = None
     knowledge_base_ids: list[str] | None = None
     mcp_servers: list[str] | None = None
+    managed_type: str | None = None
+    config_locked: bool = False
+    template_version: str | None = None
     runtime_config: dict[str, Any] = field(default_factory=dict)
     config: dict[str, Any] = field(default_factory=dict)
 
@@ -498,6 +503,19 @@ class AgentManager:
     def octop_config(self) -> OctopConfig:
         return self._config
 
+    def current_datetime_for_prompt(self) -> str:
+        """Return the server-local time used to resolve relative business dates."""
+        from zoneinfo import ZoneInfo
+
+        timezone: tzinfo | None
+        try:
+            timezone = ZoneInfo(self._config.default_timezone)
+        except Exception:
+            timezone = datetime.now().astimezone().tzinfo
+        if timezone is None:
+            return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.now(timezone).strftime("%Y-%m-%d %H:%M:%S %Z")
+
     # ------------------------------------------------------------------
     # CRUD — persist agent rows and sync harness runtime
     # ------------------------------------------------------------------
@@ -593,6 +611,9 @@ class AgentManager:
                 ),
                 knowledge_base_ids=knowledge_ids_json,
                 mcp_servers=mcp_servers_json,
+                managed_type=spec.managed_type,
+                config_locked=spec.config_locked,
+                template_version=spec.template_version,
             )
             row = self._repos.agent_repo.get(agent_id)
             assert row is not None
@@ -728,8 +749,9 @@ class AgentManager:
             raise OctopError(ErrorCode.AGENT_NOT_FOUND, f"agent {agent_id!r} not found")
         workspace_dir = self.resolve_workspace_dir(agent_id, persist_if_missing=False)
         async with self._lock:
-            await asyncio.to_thread(self._quiesce_harness_memory, agent_id)
-            await self._harness_manager.aremove_agent(agent_id)  # type: ignore[union-attr]
+            if not self._is_direct_managed_agent(row):
+                await asyncio.to_thread(self._quiesce_harness_memory, agent_id)
+                await self._harness_manager.aremove_agent(agent_id)  # type: ignore[union-attr]
         self._plugin_tool_labels.pop(agent_id, None)
         try:
             if await asyncio.to_thread(workspace_dir.exists):
@@ -755,8 +777,9 @@ class AgentManager:
             row = self._repos.agent_repo.get(agent_id)
             if row is None:
                 raise OctopError(ErrorCode.AGENT_NOT_FOUND, f"agent {agent_id!r} not found")
-            await asyncio.to_thread(self._quiesce_harness_memory, agent_id)
-            await self._harness_manager.aremove_agent(agent_id)  # type: ignore[union-attr]
+            if not self._is_direct_managed_agent(row):
+                await asyncio.to_thread(self._quiesce_harness_memory, agent_id)
+                await self._harness_manager.aremove_agent(agent_id)  # type: ignore[union-attr]
             self._repos.agent_repo.set_state(agent_id, "stopped", error=None)
 
     def _quiesce_harness_memory(self, agent_id: str) -> None:
@@ -830,6 +853,135 @@ class AgentManager:
     def list_agents(self, user_id: int) -> list[AgentRow]:
         return self._repos.agent_repo.list_by_user(user_id, include_disabled=False)
 
+    async def ensure_managed_agents_for_user(self, user_id: int, locale: str = "zh") -> None:
+        from octop.infra.agents.managed_agent import ensure_zdx_agent
+
+        if self._expert_catalog is None:
+            return
+        await ensure_zdx_agent(
+            self,
+            self._expert_catalog,
+            user_id=user_id,
+            locale=locale,
+            template_dir=self._paths.tonglian_fazai_template_dir,
+        )
+
+    async def ensure_managed_agents_for_users(self, users: list[Any]) -> None:
+        for user in users:
+            try:
+                await self.ensure_managed_agents_for_user(
+                    int(user.id),
+                    locale=str(getattr(user, "locale", None) or "zh"),
+                )
+            except Exception:
+                logger.exception("Failed to provision managed agents for user %s", user.id)
+
+    async def sync_zdx_template(
+        self, template: dict[str, Any], *, actor: str = ACTOR_SYSTEM
+    ) -> dict[str, int]:
+        """Apply the published managed template to every user's ZDX agent."""
+        from octop.infra.agents.managed_agent import (
+            MANAGED_ZDX_TYPE,
+            list_builtin_skill_slugs,
+        )
+
+        updated = 0
+        reloaded = 0
+        reload_failed = 0
+        sync_failed = 0
+        skill_packages_skipped = 0
+        for row in self._repos.agent_repo.list_all(include_disabled=True):
+            if row.managed_type != MANAGED_ZDX_TYPE:
+                continue
+            try:
+                icon_url = str(template.get("icon_url") or "").strip() or None
+                if icon_url and row.icon_url != icon_url:
+                    self.set_icon_url(row.agent_id, icon_url)
+                welcome = template["welcome_message"].get("zh", "")
+                soul = str(template["soul"])
+                package_ids = [str(item) for item in template.get("skill_package_ids", [])]
+                if self._is_direct_managed_agent(row):
+                    # The direct ZDX runtime does not execute Octop skill packages.
+                    # Keep template editing non-blocking and report this explicitly.
+                    if package_ids:
+                        skill_packages_skipped += 1
+                else:
+                    await self.persist_skill_package_ids(row.agent_id, package_ids)
+                builtin_slugs = {str(item) for item in template.get("builtin_skill_slugs", [])}
+                current_disabled = skills_disabled_set(self.get_config(row.agent_id))
+                current_disabled -= set(list_builtin_skill_slugs())
+                current_disabled.update(set(list_builtin_skill_slugs()) - builtin_slugs)
+                await self.persist_skills_disabled(row.agent_id, current_disabled)
+                self._repos.agent_repo.update_config(
+                    row.agent_id,
+                    system_prompt=soul,
+                    welcome_message=welcome,
+                )
+                cfg = self.get_config(row.agent_id)
+                cfg["managed_model"] = dict(template.get("managed_model") or {})
+                self.persist_harness_config(row.agent_id, cfg)
+                self._repos.agent_repo.set_managed_metadata(
+                    row.agent_id,
+                    template_version=str(template["version"]),
+                )
+                workspace = self.workspace_for_agent(row.agent_id)
+                if workspace is not None:
+                    await workspace.aupload_many(
+                        [
+                            ("SOUL.md", soul.encode("utf-8")),
+                            (
+                                ".octop/manifest.json",
+                                json.dumps(
+                                    {
+                                        "id": "tonglian-fazai",
+                                        "template_version": str(template["version"]),
+                                        "label": template["label"],
+                                        "description": template["description"],
+                                        "welcome_message": template["welcome_message"],
+                                        "quick_prompts": template.get("quick_prompts", []),
+                                        "task_examples": template.get("task_examples", {}),
+                                    },
+                                    ensure_ascii=False,
+                                    indent=2,
+                                ).encode("utf-8"),
+                            ),
+                        ]
+                    )
+                updated += 1
+                if row.last_state == "running":
+                    try:
+                        await self.reload(row.agent_id)
+                    except Exception:
+                        reload_failed += 1
+                        logger.exception("Failed to reload managed agent %s", row.agent_id)
+                        continue
+                    refreshed = self._repos.agent_repo.get(row.agent_id)
+                    if refreshed is not None and refreshed.last_state == "failed":
+                        reload_failed += 1
+                    else:
+                        reloaded += 1
+            except Exception:
+                sync_failed += 1
+                logger.exception("Failed to sync managed agent %s", row.agent_id)
+        result = {
+            "updated": updated,
+            "reloaded": reloaded,
+            "reload_failed": reload_failed,
+            "sync_failed": sync_failed,
+            "pending": max(0, updated - reloaded - reload_failed),
+            "skill_packages_skipped": skill_packages_skipped,
+        }
+        self._repos.audit_repo.write(
+            actor=actor,
+            action="managed_expert.template.publish",
+            target="tonglian-fazai",
+            payload=json.dumps(
+                {"template_version": str(template["version"]), **result},
+                ensure_ascii=False,
+            ),
+        )
+        return result
+
     def list_rows(self) -> list[AgentRow]:
         """Return all enabled agent rows (all users), sorted by creation time."""
         return self._repos.agent_repo.list_all(include_disabled=False)
@@ -902,6 +1054,9 @@ class AgentManager:
 
     def is_bootstrapped(self, agent_id: str) -> bool:
         """Whether onboarding has completed for a running agent."""
+        row = self.get_row(agent_id)
+        if self._is_direct_managed_agent(row):
+            return bool(row and row.last_state == "running")
         try:
             return self.get_agent(agent_id).is_bootstrapped()
         except OctopError:
@@ -950,6 +1105,39 @@ class AgentManager:
             return self._harness_manager.get_agent(agent_id).agent
         except KeyError:
             raise self._unavailable_error(agent_id) from None
+
+    def get_utility_model(self, agent_id: str, requested_ref: str | None = None) -> tuple[Any, str]:
+        """Return a model for one-shot utilities such as prompt polishing.
+
+        Direct managed agents intentionally do not have a HarnessAgent runtime:
+        their conversation model is resolved per user request.  Utility calls
+        still need a normal Octop provider, so use the shared Harness factory
+        and never route them through the managed agent's private model.
+        """
+        row = self.get_row(agent_id)
+        if row is None:
+            raise OctopError(ErrorCode.AGENT_NOT_FOUND, f"agent {agent_id!r} not found")
+
+        requested = (requested_ref or "").strip()
+        if self._is_direct_managed_agent(row):
+            model_ref = (
+                requested
+                if self._providers.is_model_ref_usable(requested)
+                else self.resolve_fallback_model_ref()
+            )
+            shared_factory = (
+                self._harness_manager.shared_factory if self._harness_manager is not None else None
+            )
+            if not model_ref or shared_factory is None:
+                raise OctopError(
+                    ErrorCode.INTERNAL_ERROR,
+                    "no usable public model is configured for this utility",
+                )
+            return shared_factory.get(model_ref), model_ref
+
+        agent = self.get_agent(agent_id)
+        model_ref = requested or agent.config.pick_default_model_ref()
+        return agent.model_factory.get(model_ref), model_ref
 
     def _unavailable_error(self, agent_id: str) -> OctopError:
         """Map a missing live harness handle to the right public error code."""
@@ -1126,6 +1314,60 @@ class AgentManager:
             row.agent_id for row in self._repos.agent_repo.list_all(include_disabled=False)
         ]
         await self._reload_agents(agent_ids)
+
+    async def refresh_user_runtime_credentials(self, user_id: int) -> None:
+        """Credentials are resolved per direct request; no runtime reload is needed."""
+        del user_id
+
+    def _zdx_credential(self, user_id: int) -> Any:
+        from octop.infra.agents.zdx_credentials import ZdxCredentialStore
+
+        return ZdxCredentialStore(self._repos.secret_repo).get(user_id)
+
+    def get_zdx_credential(self, user_id: int) -> Any:
+        """Resolve the current user's ZDX credential for a direct request."""
+        return self._zdx_credential(user_id)
+
+    async def invoke_direct_model_text(
+        self,
+        agent_id: str,
+        user_id: int,
+        *,
+        messages: list[dict[str, str]],
+    ) -> str:
+        """Invoke a managed direct model for a one-shot text utility."""
+        from octop.infra.agents.managed_agent import ZDX_PROVIDER_BASE_URL
+        from octop.infra.agents.zdx_direct import TonglianZdxDirectClient
+
+        row = self.get_row(agent_id)
+        if row is None:
+            raise OctopError(ErrorCode.AGENT_NOT_FOUND, f"agent {agent_id!r} not found")
+        if not self._is_direct_managed_agent(row):
+            raise OctopError(ErrorCode.INTERNAL_ERROR, "agent is not a direct managed model")
+        credential = self.get_zdx_credential(user_id)
+        if credential is None:
+            raise OctopError(ErrorCode.FORBIDDEN, "Tonglian ZDX credentials are not configured")
+        cfg = self.get_config(agent_id)
+        managed_model = cfg.get("managed_model")
+        base_url = (
+            str(managed_model.get("base_url"))
+            if isinstance(managed_model, dict) and managed_model.get("base_url")
+            else ZDX_PROVIDER_BASE_URL
+        )
+        timeout_seconds = 120.0
+        if isinstance(managed_model, dict):
+            raw_timeout = managed_model.get("timeout_seconds")
+            if isinstance(raw_timeout, int | float) and raw_timeout > 0:
+                timeout_seconds = float(raw_timeout)
+        client = TonglianZdxDirectClient(
+            base_url=base_url,
+            timeout_seconds=timeout_seconds,
+        )
+        return await client.complete("", credential, messages=messages)
+
+    @staticmethod
+    def _is_direct_managed_agent(row: Any) -> bool:
+        return is_direct_model_agent(row)
 
     def reload_harness_agents(self) -> None:
         """Rebuild harness agents in place (e.g. after tool-guard rules changed on disk).
@@ -1724,7 +1966,8 @@ class AgentManager:
         cfg = self.get_config(agent_id)
         cfg["skills_disabled"] = sorted(disabled)
         self.persist_harness_config(agent_id, cfg)
-        self.sync_skills_disabled(agent_id, disabled)
+        with suppress(OctopError):
+            self.sync_skills_disabled(agent_id, disabled)
 
     async def persist_tools_disabled(self, agent_id: str, disabled: set[str]) -> None:
         """Persist builtin ``tools_disabled`` and hot-sync the effective denylist."""
@@ -1992,6 +2235,13 @@ class AgentManager:
         ``kind="workspace"``). Octop relabels mounted skill-package slugs to
         ``kind="package"`` unless the agent workspace has its own copy.
         """
+        agent_row = self.get_row(agent_id)
+        if agent_row is not None and self._is_direct_managed_agent(agent_row):
+            # Direct managed agents deliberately do not boot Harness. Their
+            # model template is administered centrally, not through the
+            # per-agent Octop skill catalog.
+            return []
+
         from octop.infra.utils.frontmatter import parse_frontmatter
 
         agent = self.get_agent(agent_id)
@@ -2137,6 +2387,10 @@ class AgentManager:
 
     async def list_subagent_summaries(self, agent_id: str) -> list[dict[str, Any]]:
         """Installed subagents for *agent_id* (delegates to harness-agent catalog)."""
+        agent_row = self.get_row(agent_id)
+        if agent_row is not None and self._is_direct_managed_agent(agent_row):
+            return []
+
         agent = self.get_agent(agent_id)
         rows = [dict(row) for row in await agent.list_subagent_summaries()]
         await _fill_missing_subagent_colors(agent, rows)
@@ -2222,6 +2476,9 @@ class AgentManager:
         self, row: AgentRow, *, init_workspace: bool = True
     ) -> HarnessAgent | None:
         assert self._harness_manager is not None, "_start_agent called before boot()"
+        if self._is_direct_managed_agent(row):
+            self._repos.agent_repo.set_state(row.agent_id, "running", error=None)
+            return None
         if self._harness_manager.shared_factory is None:
             self._repos.agent_repo.set_state(row.agent_id, "failed", error=NO_MODELS_CONFIGURED)
             return None
@@ -2514,6 +2771,9 @@ class AgentManager:
         if not row or not row.enabled or row.last_state == "stopped":
             await asyncio.to_thread(self._quiesce_harness_memory, agent_id)
             await self._harness_manager.aremove_agent(agent_id)
+            return
+        if self._is_direct_managed_agent(row):
+            self._repos.agent_repo.set_state(agent_id, "running", error=None)
             return
         if self._harness_manager.shared_factory is None:
             return
@@ -2910,6 +3170,7 @@ class AgentManager:
             row=row,
             workspace_dir=workspace_dir,
             cfg=cfg,
+            extra_env={},
         )
         # OpenSandbox.create is not idempotent — reuse the instance already
         # wrapped by ``ws`` so start does not spawn a second remote sandbox.

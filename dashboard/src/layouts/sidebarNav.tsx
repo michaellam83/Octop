@@ -60,6 +60,7 @@ export const SIDEBAR_GROUPED_NAV_KEYS = [
   "models",
   "admin-storage",
   "admin-plugins",
+  "admin-managed-experts",
   "admin-security",
   "admin-advanced",
   "agent-config",
@@ -75,34 +76,38 @@ export function buildNavSections(
   user: OctopUser | null,
   opts?: { mobileEnabled?: boolean },
 ): NavSection[] {
+  const primaryItems: NavItem[] = [
+    {
+      key: "chat",
+      path: "/chat",
+      icon: <MessageSquareText size={iconSize} strokeWidth={iconStroke} />,
+      labelKey: "nav.chat",
+    },
+    {
+      key: "experts",
+      path: "/experts",
+      icon: <GraduationCap size={iconSize} strokeWidth={iconStroke} />,
+      labelKey: "nav.experts",
+    },
+  ];
+  if (user?.role === "admin") {
+    primaryItems.push({
+      key: "tasks",
+      path: "/tasks",
+      icon: <Timer size={iconSize} strokeWidth={iconStroke} />,
+      labelKey: "nav.tasks",
+    });
+  }
+  primaryItems.push({
+    key: "token-usage",
+    path: "/token-usage",
+    icon: <Activity size={iconSize} strokeWidth={iconStroke} />,
+    labelKey: "nav.tokenUsage",
+  });
+
   const sections: NavSection[] = [
     {
-      items: [
-        {
-          key: "chat",
-          path: "/chat",
-          icon: <MessageSquareText size={iconSize} strokeWidth={iconStroke} />,
-          labelKey: "nav.chat",
-        },
-        {
-          key: "experts",
-          path: "/experts",
-          icon: <GraduationCap size={iconSize} strokeWidth={iconStroke} />,
-          labelKey: "nav.experts",
-        },
-        {
-          key: "tasks",
-          path: "/tasks",
-          icon: <Timer size={iconSize} strokeWidth={iconStroke} />,
-          labelKey: "nav.tasks",
-        },
-        {
-          key: "token-usage",
-          path: "/token-usage",
-          icon: <Activity size={iconSize} strokeWidth={iconStroke} />,
-          labelKey: "nav.tokenUsage",
-        },
-      ],
+      items: primaryItems,
     },
   ];
 
@@ -215,6 +220,14 @@ export function buildNavSections(
       path: "/admin/plugins",
       icon: <Puzzle size={iconSize} strokeWidth={iconStroke} />,
       labelKey: "nav.adminPlugins",
+    });
+  }
+  if (user?.role === "admin") {
+    adminItems.push({
+      key: "admin-managed-experts",
+      path: "/admin/managed-experts",
+      icon: <PanelsTopLeft size={iconSize} strokeWidth={iconStroke} />,
+      labelKey: "nav.adminManagedExperts",
     });
   }
   if (navAllowed(user, "admin-security")) {

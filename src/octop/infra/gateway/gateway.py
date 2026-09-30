@@ -16,6 +16,7 @@ from harness_gateway.manager import ChannelManager
 from harness_gateway.models import ChannelSubject
 
 from octop.i18n import channel_probe_incomplete, channel_runtime_reason, tr
+from octop.infra.agents.managed_runtime import capabilities_for_row
 from octop.infra.db.repos.channels import ChannelRow
 from octop.infra.db.repos.sessions import SessionRow
 from octop.infra.errors import ErrorCode, OctopError
@@ -24,6 +25,7 @@ from octop.infra.gateway.history_backfill import HistoryBackfillQueue
 from octop.infra.gateway.process import media_backend_for_agent
 from octop.infra.gateway.process.processor import GlobalProcessor
 from octop.infra.gateway.process.response_mode import (
+    ChannelResponseMode,
     normalize_channel_response_mode,
     processor_for_response_mode,
     qq_channel_response_mode,
@@ -633,11 +635,20 @@ class Gateway:
         if not self._channel_manager or not self._processor:
             return
         config = self._config_from_row(row)
-        response_mode = (
-            qq_channel_response_mode(config)
-            if row.kind == "qq"
-            else normalize_channel_response_mode(config.get("response_mode"))
-        )
+        agent_row = self._agent_manager.get_row(row.agent_id)
+        capabilities = capabilities_for_row(agent_row)
+        response_mode: ChannelResponseMode
+        if row.kind == "qq" and capabilities.qq_delivery_mode == "invoke":
+            # QQ's replace-mode stream can reject a stale frame index after a
+            # reconnect. Managed ZDX replies are already streamed from the
+            # model endpoint, so deliver the completed answer through QQ's
+            # normal message API instead.
+            config = {**config, "c2c_streaming": False}
+            response_mode = "invoke"
+        elif row.kind == "qq":
+            response_mode = qq_channel_response_mode(config)
+        else:
+            response_mode = normalize_channel_response_mode(config.get("response_mode"))
         processor = processor_for_response_mode(self._processor, response_mode)
         manager = self._require_channel_manager()
         await manager.add_channel(

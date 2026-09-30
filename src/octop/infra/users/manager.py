@@ -10,6 +10,7 @@ import re
 import shutil
 import sqlite3
 import time
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 try:
@@ -91,6 +92,20 @@ class UserManager:
         self._lock = asyncio.Lock()
         self._login_max_attempts = max(1, services.config.login_max_attempts)
         self._login_lockout_seconds = max(60, services.config.login_lockout_seconds)
+        self._agent_provisioner: Callable[[int, str], Awaitable[None]] | None = None
+
+    def set_agent_provisioner(
+        self, provisioner: Callable[[int, str], Awaitable[None]] | None
+    ) -> None:
+        self._agent_provisioner = provisioner
+
+    async def _provision_agents(self, user: User) -> None:
+        if self._agent_provisioner is None:
+            return
+        try:
+            await self._agent_provisioner(user.id, normalize_locale(user.locale))
+        except Exception:
+            logger.exception("Could not provision managed agents for user %s", user.id)
 
     def replace_services(self, services: SharedServices) -> None:
         """Point at a new SharedServices (control-plane DB rebind during setup)."""
@@ -180,7 +195,8 @@ class UserManager:
             )
             self._users[username] = user
             self._services.audit_repo.write(actor=username, action="user.create", target=username)
-            return user
+        await self._provision_agents(user)
+        return user
 
     def register_cached_user(self, user: User) -> None:
         """Adopt a user row created outside ``create`` (e.g. invite redeem)."""
@@ -199,7 +215,7 @@ class UserManager:
         from octop.infra.users.invites import InviteService
 
         async with self._lock:
-            return InviteService(self._services).redeem(
+            user = InviteService(self._services).redeem(
                 code=code,
                 username=username,
                 password=password,
@@ -208,6 +224,8 @@ class UserManager:
                 email=email,
                 register_user=self.register_cached_user,
             )
+        await self._provision_agents(user)
+        return user
 
     def get(self, username: str) -> User | None:
         return self._users.get(username)
@@ -288,6 +306,7 @@ class UserManager:
                         self._services.audit_repo.write(
                             actor=username, action="user.sso_create", target=username
                         )
+                        await self._provision_agents(user)
                         return user
 
             assert row is not None  # The retry loop either returns, raises, or finds this identity.
@@ -312,7 +331,9 @@ class UserManager:
                     permissions=list(row.permissions),
                 )
                 self._users[row.username] = user
+                await self._provision_agents(user)
                 return user
+            await self._provision_agents(cached_user)
             return cached_user
 
     async def bind_sso_identity(

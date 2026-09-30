@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from harness_gateway.models import ChannelSubject, InboundMessage, TextContent
+from harness_gateway.models import ChannelSubject, InboundMessage, MessageEvent, TextContent
 
 from octop.infra.errors import ErrorCode, OctopError
 from octop.infra.gateway.process.processor import GlobalProcessor
@@ -75,6 +75,59 @@ async def test_im_call_merges_default_open_mcp_servers() -> None:
     )
     agent_manager.prepare_chat_mcp.assert_awaited_once()
     assert captured["request"]["mcp_servers"] == ["docs__1"]
+
+
+@pytest.mark.asyncio
+async def test_managed_zdx_im_turn_skips_stale_hitl_and_uses_direct_path() -> None:
+    agent_manager = MagicMock()
+    agent_repo = MagicMock()
+    agent_repo.get = MagicMock(
+        return_value=SimpleNamespace(user_id=7, managed_type="tonglian_fazai")
+    )
+    thread_registry = MagicMock()
+    thread_registry.get_or_create_by_key = AsyncMock(return_value="thr-im")
+    processor = GlobalProcessor(
+        agent_manager=agent_manager,
+        thread_registry=thread_registry,
+        audit_repo=MagicMock(),
+        agent_repo=agent_repo,
+        user_repo=MagicMock(),
+        connector_repo=MagicMock(),
+        dispatcher=SlashDispatcher(),
+        usage_repo=None,
+        gateway=None,
+    )
+    processor._hitl = MagicMock()
+    processor._hitl.resolve_ask_pending.return_value = object()
+
+    async def direct_events(**_kwargs: object):
+        yield MessageEvent.completed()
+
+    processor._iter_direct_zdx_events = direct_events  # type: ignore[method-assign]
+    msg = InboundMessage(
+        channel_id="qq",
+        channel_type="qq",
+        tenant_id="agent-1",
+        channel_subject=ChannelSubject(subject_id="qq-user"),
+        content=[TextContent(text="hello")],
+    )
+
+    events = [event async for event in processor(msg)]
+
+    assert events == [MessageEvent.completed()]
+    processor._hitl.resolve_ask_pending.assert_not_called()
+
+
+def test_short_web_follow_up_keeps_previous_user_topic() -> None:
+    query = GlobalProcessor._web_search_query(
+        "那你从互联网查询",
+        [
+            {"role": "user", "content": "分析国通星驿和通联收银宝产品的差异"},
+            {"role": "assistant", "content": "我先梳理内部资料。"},
+        ],
+    )
+
+    assert query == "分析国通星驿和通联收银宝产品的差异\n用户补充要求：那你从互联网查询"
 
 
 @pytest.mark.asyncio

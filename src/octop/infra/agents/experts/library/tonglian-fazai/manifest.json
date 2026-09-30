@@ -1,0 +1,83 @@
+{
+  "id": "tonglian-fazai",
+  "label": {
+    "zh": "通联发仔",
+    "en": "Fazai"
+  },
+  "description": {
+    "zh": "通联智多星业务助手，面向通联知识库和内部业务查询。",
+    "en": "Tonglian business assistant for ZDX knowledge and internal queries."
+  },
+  "welcome_message": {
+    "zh": "你好，我是通联发仔，可以帮你查询通联知识和业务信息。",
+    "en": "Hello, I am Allinpay Fazai. I can help with Allinpay knowledge and business queries."
+  },
+  "icon_name": "sparkles",
+  "icon_url": "/experts/avatars/tonglian-fazai.png",
+  "color": "#e8f4ff",
+  "prompt_files": [
+    "SOUL.md"
+  ],
+  "template_version": "7",
+  "quick_prompts": [
+    {
+      "title": {"zh": "查询交易", "en": "Check a transaction"},
+      "description": {"zh": "查询商户交易并说明结果", "en": "Check a merchant transaction and explain the result"},
+      "prompt": {"zh": "请先确认当前日期，并帮我查询以下商户交易：", "en": "First confirm today's date, then check this merchant transaction:"},
+      "color": "#e8f4ff",
+      "icon_name": "search"
+    },
+    {
+      "title": {"zh": "解释业务流程", "en": "Explain a business process"},
+      "description": {"zh": "结合通联知识解释业务规则", "en": "Explain an Allinpay business rule"},
+      "prompt": {"zh": "请结合通联知识库解释以下业务流程，并列出关键注意事项：", "en": "Please explain this Allinpay business process and list the key points:"},
+      "color": "#fef3c7",
+      "icon_name": "book-open"
+    },
+    {
+      "title": {"zh": "整理问题", "en": "Structure a business issue"},
+      "description": {"zh": "把问题整理成便于排查的描述", "en": "Turn an issue into a clear investigation brief"},
+      "prompt": {"zh": "请帮我整理下面的通联业务问题，提取已知条件、待确认信息和排查建议：\n\n", "en": "Please structure this Allinpay business issue into known facts, missing information, and next steps:\n\n"},
+      "color": "#dcfce7",
+      "icon_name": "list-todo"
+    },
+    {
+      "title": {"zh": "分析数据", "en": "Analyze business data"},
+      "description": {"zh": "识别交易数据中的规律和异常", "en": "Find patterns and anomalies in transaction data"},
+      "prompt": {"zh": "请分析以下通联业务数据，指出关键规律、趋势和异常：\n\n", "en": "Please analyze the following Allinpay business data and identify patterns, trends, and anomalies:\n\n"},
+      "color": "#e0f7f4",
+      "icon_name": "trending-up"
+    },
+    {
+      "title": {"zh": "随便问问", "en": "Ask anything"},
+      "description": {"zh": "直接提出通联业务问题", "en": "Ask an Allinpay business question"},
+      "prompt": {"zh": "我有一个通联业务问题想请教你：", "en": "I have an Allinpay business question:"},
+      "color": "#eef2ff",
+      "icon_name": "message-square"
+    }
+  ],
+  "builtin_skill_slugs": [
+    "skill-manager"
+  ],
+  "skill_package_ids": [],
+  "task_examples": {
+    "zh": [
+      "查询一笔商户交易的处理状态并说明原因",
+      "根据通联知识库解释一个业务流程",
+      "整理一段业务问题并给出下一步处理建议"
+    ],
+    "en": [
+      "Check a merchant transaction status and explain the result",
+      "Explain a business process using Allinpay knowledge",
+      "Summarize a business issue and suggest the next action"
+    ]
+  },
+  "managed_model": {
+    "type": "tonglian_zdx",
+    "base_url": "https://ai.allinpay.com/v1/",
+    "model": "auto",
+    "credential_scope": "current_user",
+    "mode": "direct",
+    "timeout_seconds": 120
+  }
+}

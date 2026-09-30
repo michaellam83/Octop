@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { App } from "antd";
 
 import { useIsMobile } from "../../../hooks/useIsMobile";
+import { useCurrentUser } from "../../../hooks/useCurrentUser";
 import { useSlashCommands } from "../../../hooks/useSlashCommands";
 import SlashCommandMenu from "./SlashCommandMenu";
 import { agentChatApi } from "../../../api/modules/agentChat";
@@ -75,6 +76,9 @@ interface ChatInputProps {
   browserRecording?: boolean;
   browserReplayBusy?: boolean;
   browserLastRecordingId?: string | null;
+  /** Whether the slash-command shortcut surface is available for this expert. */
+  supportsShortcuts?: boolean;
+  supportsAttachments?: boolean;
   onStartBrowserRecording?: () => void;
   onStopBrowserRecording?: () => void;
   onReplayBrowserRecording?: () => void;
@@ -134,6 +138,8 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       browserRecording,
       browserReplayBusy,
       browserLastRecordingId,
+      supportsShortcuts = true,
+      supportsAttachments = true,
       onStartBrowserRecording,
       onStopBrowserRecording,
       onReplayBrowserRecording,
@@ -172,6 +178,13 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const { t, i18n } = useTranslation();
     const { modal, message: antMessage } = App.useApp();
     const { commands: slashCommands, labelFor } = useSlashCommands("ui");
+    const currentUser = useCurrentUser();
+    const composerSlashCommands =
+      supportsShortcuts && currentUser?.role === "admin"
+        ? slashCommands
+        : supportsShortcuts
+          ? slashCommands.filter((command) => command.name !== "cron")
+          : [];
     const skillDisplayName = useSkillDisplayName();
     const isMobile = useIsMobile();
     useKeyboardOffset();
@@ -221,7 +234,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       handleDragLeave,
       handleDragOver,
       handleDrop,
-    } = useChatAttachments(agentId);
+    } = useChatAttachments(agentId, supportsAttachments);
 
     // Expose an imperative handle so the parent can push a new prefill without
     // triggering a prop change that would cause a re-render cascade.
@@ -361,7 +374,7 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       text,
       setText: setComposerText,
       textareaRef,
-      slashCommands,
+      slashCommands: composerSlashCommands,
       labelFor,
       locale: i18n.language,
       availableSkills,
@@ -832,6 +845,8 @@ const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             browserRecording={browserRecording}
             browserReplayBusy={browserReplayBusy}
             browserLastRecordingId={browserLastRecordingId}
+            supportsShortcuts={supportsShortcuts}
+            supportsAttachments={supportsAttachments}
             onStartBrowserRecording={onStartBrowserRecording}
             onStopBrowserRecording={onStopBrowserRecording}
             onReplayBrowserRecording={onReplayBrowserRecording}

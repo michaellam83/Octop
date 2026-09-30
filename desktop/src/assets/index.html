@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Octop</title>
+    <title>AllinpayAI</title>
     <script>
       document.documentElement.dataset.chrome = /Mac|iPhone|iPad/.test(
         navigator.userAgent,
@@ -340,15 +340,7 @@
         height: auto;
         object-fit: contain;
         background: transparent;
-        cursor: pointer;
         user-select: none;
-        transition: transform 0.18s ease;
-      }
-      .loading img:hover {
-        transform: scale(1.04) translateY(-2px);
-      }
-      .loading img:active {
-        transform: scale(0.94);
       }
       .loading-brand {
         margin: 0;
@@ -402,6 +394,40 @@
       }
       .loading.is-error .loading-status {
         color: #991b1b;
+      }
+      .loading-actions {
+        display: none;
+        gap: 10px;
+        width: 100%;
+      }
+      .loading.is-error .loading-actions {
+        display: flex;
+      }
+      .loading-actions button {
+        flex: 1;
+        min-width: 0;
+        padding: 9px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .loading-actions .primary {
+        background: var(--brand);
+        color: var(--on-brand);
+        border: 0;
+      }
+      .loading-actions .primary:hover {
+        background: var(--brand-hover);
+      }
+      .loading-actions .ghost {
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        border: 1px solid var(--border);
+      }
+      .loading-actions .ghost:hover {
+        background: var(--bg-secondary);
       }
       @keyframes loading-slide {
         0% {
@@ -487,11 +513,11 @@
       <div class="loading-card">
         <img
           id="mascot"
-          src="/octop-mascot-peek.webp"
-          alt="Octop"
+          src="/allinpay-loading-mascot.gif"
+          alt="AllinpayAI"
           draggable="false"
         />
-        <p class="loading-brand" id="loading-brand">Octop</p>
+        <p class="loading-brand" id="loading-brand">AllinpayAI</p>
         <p class="loading-hint" id="loading-hint">
           正在检查运行环境，可能需要几分钟。
         </p>
@@ -500,13 +526,21 @@
             <span class="loading-bar-fill"></span>
           </div>
           <p class="loading-status" id="status">正在启动，请稍候…</p>
+          <div class="loading-actions">
+            <button class="primary" id="retry-connection" type="button">
+              重试连接
+            </button>
+            <button class="ghost" id="open-connection-browser" type="button">
+              在浏览器中打开地址
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
     <div id="settings-panel" class="hidden">
       <div class="wrap">
-        <h1 id="title">Octop 设置</h1>
+        <h1 id="title">AllinpayAI 设置</h1>
         <p class="subtitle" id="subtitle">桌面端偏好</p>
         <div class="card">
           <div class="row">
@@ -555,7 +589,7 @@
           </div>
         </div>
         <div class="actions">
-          <button class="primary" id="show-main">显示 Octop</button>
+          <button class="primary" id="show-main">显示 AllinpayAI</button>
           <button class="ghost" id="quit">退出</button>
         </div>
         <p class="status hidden" id="settings-status"></p>
@@ -568,7 +602,7 @@
         zh: {
           statusWait: "正在启动，请稍候…",
           loadingHint: "正在检查运行环境，可能需要几分钟。",
-          title: "Octop 设置",
+          title: "AllinpayAI 设置",
           subtitle: "桌面端偏好",
           lang: "语言",
           langH: "选择偏好语言 / Choose your preferred language",
@@ -578,8 +612,10 @@
           trayH: "点击最小化时隐藏窗口并保留在系统托盘",
           sleep: "防止系统休眠",
           sleepH: "应用运行期间阻止系统自动休眠",
-          showMain: "显示 Octop",
+          showMain: "显示 AllinpayAI",
           quit: "退出",
+          retry: "重试连接",
+          openBrowser: "在浏览器中打开地址",
           winGroup: "窗口控制",
           winMin: "最小化",
           winMax: "最大化",
@@ -588,18 +624,20 @@
         en: {
           statusWait: "Starting, please wait…",
           loadingHint: "Checking the runtime. This may take a few minutes.",
-          title: "Octop Settings",
+          title: "AllinpayAI Settings",
           subtitle: "Desktop preferences",
           lang: "Language",
           langH: "Choose your preferred language",
           auto: "Launch at login",
           autoH: "Start automatically after you sign in",
           tray: "Minimize to tray",
-          trayH: "Hide the window on minimize and keep Octop in the tray",
+          trayH: "Hide the window on minimize and keep AllinpayAI in the tray",
           sleep: "Prevent system sleep",
-          sleepH: "Keeps the system awake while Octop is running",
-          showMain: "Show Octop",
+          sleepH: "Keeps the system awake while AllinpayAI is running",
+          showMain: "Show AllinpayAI",
           quit: "Quit",
+          retry: "Retry connection",
+          openBrowser: "Open address in browser",
           winGroup: "Window controls",
           winMin: "Minimize",
           winMax: "Maximize",
@@ -634,6 +672,9 @@
         document.getElementById("h-sleep").textContent = t.sleepH;
         document.getElementById("show-main").textContent = t.showMain;
         document.getElementById("quit").textContent = t.quit;
+        document.getElementById("retry-connection").textContent = t.retry;
+        document.getElementById("open-connection-browser").textContent =
+          t.openBrowser;
         document.getElementById("loading-hint").textContent = t.loadingHint;
         applyWindowCopy(t);
       }
@@ -665,25 +706,7 @@
         return Call.ByName("main.App." + name, ...args);
       }
 
-      const MASCOT_IMAGES = [
-        "/octop-mascot-peek.webp",
-        "/octop-mascot-type.webp",
-      ];
       const mascotEl = document.getElementById("mascot");
-      let mascotSrc = MASCOT_IMAGES[0];
-      function pickMascot(current) {
-        let next = current;
-        while (next === current) {
-          next = MASCOT_IMAGES[Math.floor(Math.random() * MASCOT_IMAGES.length)];
-        }
-        return next;
-      }
-      mascotSrc = pickMascot(mascotSrc);
-      mascotEl.src = mascotSrc;
-      mascotEl.addEventListener("click", () => {
-        mascotSrc = pickMascot(mascotSrc);
-        mascotEl.src = mascotSrc;
-      });
 
       function current() {
         return {
@@ -749,6 +772,16 @@
           .getElementById("quit")
           .addEventListener("click", () => call("Quit"));
       }
+
+      document
+        .getElementById("retry-connection")
+        .addEventListener("click", () => {
+          document.getElementById("loading-panel").classList.remove("is-error");
+          call("RetryConnection");
+        });
+      document
+        .getElementById("open-connection-browser")
+        .addEventListener("click", () => call("OpenConnectionInBrowser"));
 
       Events.On("desktop:status", (ev) => {
         const msg =

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 from octop.infra.db.pool import DatabasePool
 from octop.infra.db.repos._base import UNSET, DbRow, bool_int, map_rows, now_ts, optional_updates
@@ -46,6 +47,9 @@ class AgentRow:
     welcome_message: str | None = None
     knowledge_base_ids: str | None = None
     mcp_servers: str | None = None
+    managed_type: str | None = None
+    config_locked: int = 0
+    template_version: str | None = None
 
     @classmethod
     def from_row(cls, r: DbRow) -> AgentRow:
@@ -53,6 +57,10 @@ class AgentRow:
             is_shared = int(r["is_shared"])
         except KeyError:
             is_shared = 0
+        try:
+            config_locked = int(r["config_locked"] or 0)
+        except (KeyError, IndexError):
+            config_locked = 0
         return cls(
             id=r["id"],
             agent_id=r["agent_id"],
@@ -79,6 +87,9 @@ class AgentRow:
             welcome_message=_opt_str(r, "welcome_message"),
             knowledge_base_ids=_opt_str(r, "knowledge_base_ids"),
             mcp_servers=_opt_str(r, "mcp_servers"),
+            managed_type=_opt_str(r, "managed_type"),
+            config_locked=config_locked,
+            template_version=_opt_str(r, "template_version"),
         )
 
 
@@ -107,6 +118,9 @@ class AgentRepo:
         welcome_message: str | None = None,
         knowledge_base_ids: str | None = None,
         mcp_servers: str | None = None,
+        managed_type: str | None = None,
+        config_locked: bool = False,
+        template_version: str | None = None,
     ) -> str:
         ts = now_ts()
         with self._db.transaction() as conn:
@@ -115,8 +129,9 @@ class AgentRepo:
                 "persona_mbti, default_model, system_prompt, enabled, config_json, icon, "
                 "template_name, color, icon_name, icon_url, skill_package_ids, "
                 "published_expert_id, welcome_message, knowledge_base_ids, mcp_servers, "
-                "created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "managed_type, config_locked, template_version, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 1, "
+                "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     agent_id,
                     user_id,
@@ -136,6 +151,9 @@ class AgentRepo:
                     welcome_message,
                     knowledge_base_ids,
                     mcp_servers,
+                    managed_type,
+                    bool_int(config_locked),
+                    template_version,
                     ts,
                     ts,
                 ),
@@ -178,6 +196,32 @@ class AgentRepo:
                 "UPDATE agents SET is_shared = ?, updated_at = ? WHERE agent_id = ?",
                 (bool_int(shared), now_ts(), agent_id),
             )
+
+    def set_managed_metadata(
+        self,
+        agent_id: str,
+        *,
+        managed_type: str | None | object = UNSET,
+        config_locked: bool | object = UNSET,
+        template_version: str | None | object = UNSET,
+    ) -> None:
+        fields, params = optional_updates(
+            [
+                ("managed_type", managed_type),
+                (
+                    "config_locked",
+                    bool_int(cast(bool, config_locked)) if config_locked is not UNSET else UNSET,
+                ),
+                ("template_version", template_version),
+            ]
+        )
+        if not fields:
+            return
+        fields.append("updated_at = ?")
+        params.append(now_ts())
+        params.append(agent_id)
+        with self._db.transaction() as conn:
+            conn.execute(f"UPDATE agents SET {', '.join(fields)} WHERE agent_id = ?", params)
 
     def list_shared(self, *, exclude_user_id: int | None = None) -> list[AgentRow]:
         sql = "SELECT * FROM agents WHERE is_shared = 1 AND enabled = 1"

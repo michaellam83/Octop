@@ -24,7 +24,7 @@ import {
   type ToolCallChunk,
   type UsageChunk,
 } from "../../../utils/parseHarnessChunk";
-import { isChatStreamError } from "../../../utils/chatStreamError";
+import { isModelRetryFailureMessage } from "../../../utils/chatStreamError";
 import { parseToolExecutionFeedback } from "../../../utils/toolMediaBlocks";
 import { buildUserMessageContent } from "../utils/chatAttachments";
 import { sealPriorStreamingAssistants as sealPriorStreamingAssistantsMessages } from "./sealPriorStreamingAssistants";
@@ -1464,7 +1464,7 @@ function finalizeStreamingMessages(state: SessionStreamState): void {
       m.role === "assistant" &&
       !m.toolData &&
       typeof m.content === "string" &&
-      isChatStreamError(m.content)
+      isModelRetryFailureMessage(m.content)
     ) {
       return {
         ...m,

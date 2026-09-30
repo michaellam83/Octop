@@ -129,6 +129,21 @@ _AGENT_PROFILE_COLUMNS = (
 )
 
 
+def _ensure_managed_agent_schema(db: DatabasePool) -> None:
+    """Ensure system-managed agent metadata exists on partially upgraded DBs."""
+    if not _table_exists(db, "agents"):
+        return
+    _ensure_column(db, "agents", "managed_type", "TEXT")
+    _ensure_column(db, "agents", "config_locked", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(db, "agents", "template_version", "TEXT")
+    with db.connect() as conn:
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_user_managed_type "
+            "ON agents(user_id, managed_type) "
+            "WHERE user_id IS NOT NULL AND managed_type IS NOT NULL"
+        )
+
+
 def _drop_column(db: DatabasePool, table: str, column: str) -> None:
     if column not in _table_columns(db, table):
         return
@@ -1563,6 +1578,7 @@ def _apply_sqlite_migration(db: DatabasePool, version: int, path: Path) -> None:
     Version 14 adds per-user named policy rows.
     Version 15 adds pluggable SSO provider ``kind`` / ``extra`` and
     multi-identity ``user_sso_identities``.
+    Version 16 adds system-managed agent metadata.
     """
     if version == 2:
         if _table_exists(db, "cron_jobs"):
@@ -1668,6 +1684,11 @@ def _apply_sqlite_migration(db: DatabasePool, version: int, path: Path) -> None:
         with db.connect() as conn:
             conn.execute("UPDATE _schema_version SET version = ?", (version,))
         return
+    if version == 16:
+        _ensure_managed_agent_schema(db)
+        with db.connect() as conn:
+            conn.execute("UPDATE _schema_version SET version = ?", (version,))
+        return
     sql = path.read_text(encoding="utf-8")
     with db.connect() as conn:
         conn.executescript(sql)
@@ -1711,3 +1732,4 @@ def run_migrations(db: DatabasePool) -> None:
     _ensure_user_policy_schema(db)
     _ensure_agent_profile_columns(db)
     _ensure_sso_provider_kind_schema(db)
+    _ensure_managed_agent_schema(db)

@@ -44,7 +44,11 @@ import yaml
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
-from octop.api.common.agent import require_agent_owner_row, require_agent_row
+from octop.api.common.agent import (
+    assert_agent_capability,
+    require_agent_owner_row,
+    require_agent_row,
+)
 from octop.api.deps import current_user, get_server, require_permission
 from octop.infra.agents.manager import (
     skill_package_ids_list,
@@ -101,9 +105,16 @@ async def _ctx(
     registry = server.app_runtime.agent_registry
     require = require_agent_owner_row if owner_only else require_agent_row
     row = require(agent_id, user=user, as_user=as_user, server=server)
+    if owner_only:
+        assert_agent_capability(row, "supports_skills")
     cfg = registry.get_config(agent_id)
-    agent = registry.get_agent(agent_id)
-    return _AgentCtx(runtime=row, workspace=agent.workspace, config=cfg)
+    try:
+        workspace = registry.get_agent(agent_id).workspace
+    except OctopError:
+        workspace = registry.workspace_for_agent(agent_id)
+        if workspace is None:
+            raise
+    return _AgentCtx(runtime=row, workspace=workspace, config=cfg)
 
 
 def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
@@ -458,6 +469,11 @@ async def list_skills(
     user: Any = Depends(current_user),
     server: Any = Depends(get_server),
 ) -> list[dict[str, Any]]:
+    row = require_agent_row(agent_id, user=user, as_user=as_user, server=server)
+    from octop.infra.agents.managed_runtime import capabilities_for_row
+
+    if not capabilities_for_row(row).supports_skills:
+        return []
     await _ctx(agent_id, user=user, as_user=as_user, server=server, owner_only=False)
     assert server.app_runtime is not None
     return cast(
@@ -494,7 +510,8 @@ async def list_skill_package_mounts(
     user: Any = Depends(current_user),
     server: Any = Depends(get_server),
 ) -> dict[str, Any]:
-    require_agent_owner_row(agent_id, user=user, as_user=as_user, server=server)
+    row = require_agent_owner_row(agent_id, user=user, as_user=as_user, server=server)
+    assert_agent_capability(row, "supports_skills")
     assert server.app_runtime is not None
     package_ids = skill_package_ids_list(server.app_runtime.agent_registry.get_config(agent_id))
     assert server.services is not None
@@ -530,7 +547,8 @@ async def replace_skill_package_mounts(
     user: Any = Depends(current_user),
     server: Any = Depends(get_server),
 ) -> dict[str, list[str]]:
-    require_agent_owner_row(agent_id, user=user, as_user=as_user, server=server)
+    row = require_agent_owner_row(agent_id, user=user, as_user=as_user, server=server)
+    assert_agent_capability(row, "supports_skills")
     assert server.app_runtime is not None
     package_ids = skill_package_ids_list({"skill_package_ids": body.package_ids})
     await server.app_runtime.agent_registry.persist_skill_package_ids(agent_id, package_ids)

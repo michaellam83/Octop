@@ -34,6 +34,11 @@ on:
         required: false
         default: ""
         type: string
+      remote_url:
+        description: "Compile a default remote Octop URL into the desktop app (optional)"
+        required: false
+        default: "http://10.40.47.5:8088"
+        type: string
 
 permissions:
   contents: read
@@ -228,7 +233,7 @@ jobs:
           sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
       - name: Install Wails v3 CLI
-        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.13
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.26
 
       - name: Install NSIS
         if: runner.os == 'Windows'
@@ -243,10 +248,13 @@ jobs:
 
       - name: Package desktop app with bundled portable runtime
         working-directory: desktop/src
+        env:
+          REMOTE_URL: ${{ github.event.inputs.remote_url || 'http://10.40.47.5:8088' }}
         run: >-
           wails3 task package
           ARCH=${{ matrix.arch }}
           VERSION=${{ env.OCTOP_VERSION }}
+          REMOTE_URL="$REMOTE_URL"
           PORTABLE_ZIP=../portable/release/Octop-portable-${{ matrix.plat }}-${{ env.OCTOP_VERSION }}.zip
 
       # archive: false — upload the prebuilt zip as-is. Default archive=true would
@@ -262,7 +270,7 @@ jobs:
       - name: Upload bundled desktop package
         uses: actions/upload-artifact@v7
         with:
-          path: desktop/src/bin/Octop-desktop-${{ matrix.plat }}-${{ env.OCTOP_VERSION }}.*
+          path: desktop/src/bin/AllinpayAI-desktop-${{ matrix.plat }}-${{ env.OCTOP_VERSION }}.*
           archive: false
           if-no-files-found: error
           retention-days: 14
@@ -311,6 +319,16 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           pattern: Octop-*
+          path: release-assets
+          merge-multiple: true
+          skip-decompress: true
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.inputs.attach_from_run || github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: AllinpayAI-*
           path: release-assets
           merge-multiple: true
           skip-decompress: true

@@ -42,4 +42,22 @@ describe("sidebarNav", () => {
       expect(isGroupedNavKey(key)).toBe(false);
     }
   });
+
+  it("hides scheduled tasks from regular users", () => {
+    const user = {
+      id: 2,
+      username: "user",
+      role: "user",
+      permissions: [],
+    } as OctopUser;
+    const sections = buildNavSections(user);
+    expect(sections.flatMap((section) => section.items).map((item) => item.key)).not.toContain(
+      "tasks",
+    );
+    expect(
+      buildNavSections(adminUser)
+        .flatMap((section) => section.items)
+        .map((item) => item.key),
+    ).toContain("tasks");
+  });
 });

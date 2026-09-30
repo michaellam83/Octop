@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,10 @@ var assets embed.FS
 
 const trayDoubleClick = 400 * time.Millisecond
 
+// defaultRemoteURL is injected by release builds when the desktop package is
+// intended to connect to a shared server. Empty means local portable mode.
+var defaultRemoteURL string
+
 // App is the Wails service bound to the shell UI.
 type App struct {
 	app            *application.App
@@ -30,7 +35,11 @@ type App struct {
 	sleep          *sleepGuard
 	cmd            *exec.Cmd
 	mu             sync.Mutex
+	bootMu         sync.Mutex
+	booting        bool
 	quitting       bool
+	windowReady    chan struct{}
+	windowReadyOne sync.Once
 
 	trayClickMu    sync.Mutex
 	lastTrayClick  time.Time
@@ -101,6 +110,14 @@ func (a *App) ShowMain() {
 	a.showWindow()
 }
 
+func (a *App) RetryConnection() {
+	go a.boot()
+}
+
+func (a *App) OpenConnectionInBrowser() error {
+	return a.OpenExternal(a.connectionURL())
+}
+
 func (a *App) HideSettings() {
 	if a.settingsWindow == nil {
 		return
@@ -156,12 +173,52 @@ func (a *App) setStatus(msg string) {
 	a.app.Event.Emit("desktop:status", msg)
 }
 
+func configuredDesktopURL() string {
+	if url := strings.TrimSpace(os.Getenv("OCTOP_DESKTOP_URL")); url != "" {
+		return url
+	}
+	return strings.TrimSpace(defaultRemoteURL)
+}
+
+func (a *App) connectionURL() string {
+	if url := configuredDesktopURL(); url != "" {
+		return url
+	}
+	return dashboardURL(a.store.get().Port)
+}
+
+func (a *App) markWindowReady() {
+	if a.windowReady == nil {
+		return
+	}
+	a.windowReadyOne.Do(func() { close(a.windowReady) })
+}
+
+func (a *App) waitForWindowReady() {
+	if a.windowReady != nil {
+		<-a.windowReady
+	}
+}
+
 func (a *App) boot() {
+	a.bootMu.Lock()
+	if a.booting {
+		a.bootMu.Unlock()
+		return
+	}
+	a.booting = true
+	a.bootMu.Unlock()
+	defer func() {
+		a.bootMu.Lock()
+		a.booting = false
+		a.bootMu.Unlock()
+	}()
+
 	locale := LocaleEN
 	if a.store != nil {
 		locale = a.store.get().Locale
 	}
-	if url := os.Getenv("OCTOP_DESKTOP_URL"); url != "" {
+	if url := configuredDesktopURL(); url != "" {
 		a.setStatus(desktopText(locale, copyStatusConnecting))
 		if err := waitHealth(locale, url, 60*time.Second); err != nil {
 			a.setStatus(err.Error())
@@ -199,6 +256,10 @@ func (a *App) showDashboard(base string) {
 	if a.window == nil {
 		return
 	}
+	// WebView2 pumps the Windows message queue while its controller is being
+	// created. Do not enqueue SetURL during that window: Wails can re-enter the
+	// callback before the underlying ICoreWebView2 is initialized.
+	a.waitForWindowReady()
 	a.window.SetURL(base)
 	a.scheduleDragOverlay()
 	s := a.store.get()
@@ -289,13 +350,15 @@ func (a *App) requestQuit() {
 func main() {
 	store := &settingsStore{cur: loadSettings()}
 	api := &App{
-		store: store,
-		sleep: &sleepGuard{},
+		store:       store,
+		sleep:       &sleepGuard{},
+		windowReady: make(chan struct{}),
 	}
 
 	app := application.New(application.Options{
-		Name:        "Octop",
-		Description: "Octop desktop",
+		Name:         "AllinpayAI",
+		Description:  "AllinpayAI desktop",
+		ErrorHandler: reportApplicationError,
 		Services: []application.Service{
 			application.NewService(api),
 		},
@@ -304,6 +367,7 @@ func main() {
 		},
 		Windows: application.WindowsOptions{
 			DisableQuitOnLastWindowClosed: true,
+			WebviewUserDataPath:           webviewUserDataPath(),
 		},
 		Linux: application.LinuxOptions{
 			DisableQuitOnLastWindowClosed: true,
@@ -319,7 +383,7 @@ func main() {
 	})
 
 	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:                "Octop",
+		Title:                "AllinpayAI",
 		Width:                1200,
 		Height:               800,
 		URL:                  "/",
@@ -337,12 +401,15 @@ func main() {
 	app.Event.On("desktop:close", func(_ *application.CustomEvent) {
 		api.hideToTray()
 	})
-	installDragOverlay := func(_ *application.WindowEvent) { api.scheduleDragOverlay() }
+	installDragOverlay := func(_ *application.WindowEvent) {
+		api.markWindowReady()
+		api.scheduleDragOverlay()
+	}
 	win.OnWindowEvent(events.Mac.WebViewDidFinishNavigation, installDragOverlay)
 	win.OnWindowEvent(events.Windows.WebViewNavigationCompleted, installDragOverlay)
 	win.OnWindowEvent(events.Linux.WindowLoadFinished, installDragOverlay)
 	settingsWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "Octop 设置",
+		Title:            "AllinpayAI 设置",
 		Width:            settingsWindowWidth,
 		Height:           settingsWindowOuterHeight(),
 		URL:              "/?settings=1",
@@ -386,7 +453,7 @@ func main() {
 
 	tray := app.SystemTray.New()
 	applyTrayIcon(tray)
-	tray.SetTooltip("Octop")
+	tray.SetTooltip("AllinpayAI")
 	tray.AttachWindow(settingsWin).WindowOffset(6)
 	showSettings := func() { tray.ShowWindow() }
 	if trayLeftClickShowsSettings(runtime.GOOS) {
@@ -407,6 +474,7 @@ func main() {
 	go api.boot()
 
 	if err := app.Run(); err != nil {
-		log.Fatal(err)
+		reportApplicationError(err)
+		return
 	}
 }

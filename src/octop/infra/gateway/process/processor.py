@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
@@ -21,8 +22,14 @@ from harness_gateway.models import (
 from langchain_core.messages import AIMessage, HumanMessage
 
 from octop.i18n.domains.stream import format_stream_error
+from octop.infra.agents.managed_agent import (
+    ZDX_MODEL_ID,
+    ZDX_PROVIDER_BASE_URL,
+)
+from octop.infra.agents.managed_runtime import is_direct_model_agent
 from octop.infra.agents.profile import parse_config_json
 from octop.infra.agents.providers.reasoning import reasoning_request_parameters
+from octop.infra.agents.zdx_direct import TonglianZdxDirectClient, ZdxDirectError
 from octop.infra.errors import OctopError
 from octop.infra.gateway.hitl.coordinator import (
     HitlAnswerOutcome,
@@ -67,6 +74,12 @@ from octop.infra.users.preferences import (
 )
 from octop.infra.utils.locale import resolve_user_locale
 from octop.infra.utils.ulid import new_ulid
+from octop.infra.utils.web_search import (
+    format_search_context,
+    requires_web_results,
+    search_web,
+    should_search_web,
+)
 
 if TYPE_CHECKING:
     from octop.infra.agents.manager import AgentManager
@@ -606,6 +619,264 @@ class GlobalProcessor:
             needs_multimodal=needs_multimodal,
         )
 
+    @staticmethod
+    def _is_direct_zdx_agent(row: Any | None) -> bool:
+        return is_direct_model_agent(row)
+
+    @staticmethod
+    def _direct_zdx_error_message(exc: Exception, locale: str) -> str:
+        del locale
+        if not isinstance(exc, ZdxDirectError):
+            return "智多星调用失败，请稍后重试。"
+        if exc.status_code == 401:
+            return "智多星鉴权失败，请检查当前用户的智多星 Key 和用户名。"
+        if exc.status_code == 402:
+            return "智多星账户余额或调用额度不足，请联系管理员处理。"
+        if exc.status_code == 429:
+            return "智多星请求过于频繁，请稍后重试。"
+        if exc.status_code == 0 and "public web search" in str(exc).lower():
+            return (
+                "联网搜索服务暂时不可用，请稍后重试；如需使用公网资料，请联系管理员配置搜索服务。"
+            )
+        if exc.status_code == 0 and "timed out" in str(exc).lower():
+            return "智多星查询超时，请稍后重试。"
+        if exc.status_code:
+            return f"智多星服务调用失败（HTTP {exc.status_code}），请稍后重试。"
+        return "智多星网络调用失败，请检查服务连通性后重试。"
+
+    async def _direct_zdx_content(
+        self,
+        *,
+        content: str | list[dict[str, Any]],
+        user_id: int,
+        thread_id: str,
+        agent_id: str,
+        usage_sink: dict[str, Any] | None = None,
+    ) -> AsyncIterator[str]:
+        credential = self._agent_manager.get_zdx_credential(user_id)
+        if credential is None:
+            raise ZdxDirectError("ZDX credentials missing")
+        config = self._agent_manager.get_config(agent_id)
+        managed_model = config.get("managed_model")
+        model = (
+            str(managed_model.get("model")).strip()
+            if isinstance(managed_model, dict) and managed_model.get("model")
+            else ZDX_MODEL_ID
+        )
+        base_url = (
+            str(managed_model.get("base_url"))
+            if isinstance(managed_model, dict) and managed_model.get("base_url")
+            else ZDX_PROVIDER_BASE_URL
+        )
+        timeout_seconds = 120.0
+        if isinstance(managed_model, dict):
+            raw_timeout = managed_model.get("timeout_seconds")
+            if isinstance(raw_timeout, int | float) and raw_timeout > 0:
+                timeout_seconds = float(raw_timeout)
+        client = TonglianZdxDirectClient(
+            base_url=base_url,
+            model=model,
+            timeout_seconds=timeout_seconds,
+        )
+        row = self._agent_manager.get_row(agent_id)
+        system_prompt = str(row.system_prompt or "").strip() if row is not None else ""
+        current_time = self._agent_manager.current_datetime_for_prompt()
+        prompt_context = (
+            f"服务器当前日期时间（按系统时区）：{current_time}。\n"
+            "处理‘今天、昨天、最近三天、本周’等相对日期时，必须先换算成明确的起止日期，"
+            "再把该日期范围连同业务参数一起交给智多星查询；回答中也要说明实际查询范围。\n"
+            "联网编排规则：涉及外部机构、竞品、公开产品、产品差异比较或行业公开资料时，"
+            "默认先检索公网；涉及商户号、交易、订单、结算、通联内部业务系统或知识库时，"
+            "默认只走智多星内部能力，除非用户明确要求联网。公网资料与内部结果必须分开说明，"
+            "不得把未检索到的公网信息说成已核实事实。"
+        )
+        user_text = self._zdx_content_text(content)
+        history_messages = self._zdx_history_messages(thread_id)
+        if should_search_web(user_text):
+            web_query = self._web_search_query(user_text, history_messages)
+            web_result = await search_web(web_query)
+            if not web_result.ok and requires_web_results(user_text):
+                detail = (web_result.error or "no usable public results").lower()
+                reason = (
+                    "timed out" if "timeout" in detail or "timed out" in detail else "unavailable"
+                )
+                raise ZdxDirectError(f"public web search {reason}", status_code=0)
+            prompt_context = "\n\n".join([prompt_context, format_search_context(web_result)])
+        messages: list[dict[str, str]] = [
+            {
+                "role": "system",
+                "content": "\n\n".join(filter(None, [system_prompt, prompt_context])),
+            }
+        ]
+        messages.extend(self._zdx_history_messages(thread_id))
+        messages.append({"role": "user", "content": user_text})
+        async for delta in client.stream(content, credential, messages=messages):
+            yield delta
+        if usage_sink is not None and client.last_usage:
+            usage_sink.update(client.last_usage)
+            usage_sink.setdefault("model", model)
+
+    @staticmethod
+    def _web_search_query(user_text: str, history: list[dict[str, str]]) -> str:
+        """Resolve short web-search follow-ups against the prior user topic."""
+        normalized = user_text.strip()
+        if len(normalized) >= 24:
+            return normalized
+        follow_up = any(
+            marker in normalized
+            for marker in ("那你", "继续", "刚才", "上面", "这个", "它", "请从")
+        )
+        if not follow_up:
+            return normalized
+        for message in reversed(history):
+            if message.get("role") == "user" and message.get("content", "").strip():
+                return f"{message['content'].strip()}\n用户补充要求：{normalized}"
+        return normalized
+
+    def _zdx_history_messages(self, thread_id: str) -> list[dict[str, str]]:
+        if self._thread_message_repo is None:
+            return []
+        rows, _ = self._thread_message_repo.page(thread_id, limit=40)
+        messages: list[dict[str, str]] = []
+        for row in rows:
+            try:
+                wire = json.loads(row.message_json)
+            except (TypeError, json.JSONDecodeError):
+                continue
+            data = wire.get("data") if isinstance(wire, dict) else None
+            role = str(wire.get("type") or row.role) if isinstance(wire, dict) else row.role
+            content = data.get("content") if isinstance(data, dict) else None
+            if not isinstance(content, str) or not content.strip():
+                continue
+            if role in {"human", "user"}:
+                role = "user"
+            elif role in {"ai", "assistant"}:
+                role = "assistant"
+            else:
+                continue
+            messages.append({"role": role, "content": content})
+        return messages
+
+    @staticmethod
+    def _zdx_content_text(content: str | list[dict[str, Any]]) -> str:
+        if isinstance(content, str):
+            return content
+        return "\n\n".join(
+            str(item.get("text") or "")
+            for item in content
+            if isinstance(item, dict) and item.get("type") == "text"
+        ).strip()
+
+    async def _iter_direct_zdx_events(
+        self,
+        *,
+        agent_id: str,
+        thread_id: str,
+        user_id: int,
+        content: str | list[dict[str, Any]],
+        locale: str,
+        title_source: str,
+    ) -> AsyncIterator[MessageEvent]:
+        tracker = TurnHistoryTracker.from_request(
+            {"messages": [{"role": "user", "content": content}]}
+        )
+        usage: dict[str, Any] = {}
+        yield MessageEvent.typing()
+        completed = False
+        try:
+            async for delta in self._direct_zdx_content(
+                content=content,
+                user_id=user_id,
+                thread_id=thread_id,
+                agent_id=agent_id,
+                usage_sink=usage,
+            ):
+                tracker.observe({"type": "token", "content": delta})
+                yield MessageEvent.delta(delta)
+            completed = True
+        except Exception as exc:
+            await self._record_stream_error(user_id=user_id, agent_id=agent_id, exc=exc)
+            message = self._direct_zdx_error_message(exc, locale)
+            tracker.observe({"type": "error", "message": message})
+            yield MessageEvent.error_event(message)
+        finally:
+            await self._finish_history(tracker, completed=completed)
+        if completed:
+            self._touch_thread_after_turn(thread_id, title_source)
+            self._record_turn_usage(
+                agent_id=agent_id,
+                user_id=user_id,
+                thread_id=thread_id,
+                usage=usage,
+            )
+            await self._record_turn_history(thread_id, tracker)
+        else:
+            await self._persist_incomplete_turn(thread_id, tracker, title_source=title_source)
+        yield MessageEvent.completed()
+
+    async def _iter_direct_zdx_chunks(
+        self,
+        *,
+        agent_id: str,
+        thread_id: str,
+        user_id: int,
+        content: str | list[dict[str, Any]],
+        locale: str,
+        title_source: str,
+        trajectory_enabled: bool,
+    ) -> AsyncIterator[dict[str, Any]]:
+        tracker = TurnHistoryTracker.from_request(
+            {"messages": [{"role": "user", "content": content}]}
+        )
+        usage: dict[str, Any] = {}
+        if trajectory_enabled:
+            self._observe_trajectory(
+                agent_id=agent_id,
+                thread_id=thread_id,
+                chunk={"type": "user", "content": title_source, "source": "dashboard"},
+                enabled=True,
+            )
+        completed = False
+        try:
+            async for delta in self._direct_zdx_content(
+                content=content,
+                user_id=user_id,
+                thread_id=thread_id,
+                agent_id=agent_id,
+                usage_sink=usage,
+            ):
+                chunk = {"type": "token", "node": "zdx", "content": delta}
+                tracker.observe(chunk)
+                if trajectory_enabled:
+                    self._observe_trajectory(
+                        agent_id=agent_id,
+                        thread_id=thread_id,
+                        chunk=chunk,
+                        enabled=True,
+                    )
+                yield chunk
+            completed = True
+        except Exception as exc:
+            await self._record_stream_error(user_id=user_id, agent_id=agent_id, exc=exc)
+            message = self._direct_zdx_error_message(exc, locale)
+            tracker.observe({"type": "error", "message": message})
+            yield {"type": "error", "message": message}
+        finally:
+            self._finish_trajectory(thread_id=thread_id, usage=None, enabled=trajectory_enabled)
+            await self._finish_history(tracker, completed=completed)
+        if completed:
+            self._touch_thread_after_turn(thread_id, title_source)
+            self._record_turn_usage(
+                agent_id=agent_id,
+                user_id=user_id,
+                thread_id=thread_id,
+                usage=usage,
+            )
+            await self._record_turn_history(thread_id, tracker)
+        else:
+            await self._persist_incomplete_turn(thread_id, tracker, title_source=title_source)
+        yield {"type": "done"}
+
     def _resolve_reasoning_overrides(
         self,
         *,
@@ -721,7 +992,7 @@ class GlobalProcessor:
 
         # An open ``ask_user_question`` pause turns the user's next message into
         # the answer for that paused turn instead of starting a new one.
-        if cmd is None and msg.text.strip():
+        if cmd is None and msg.text.strip() and not self._is_direct_zdx_agent(agent_row):
             ask_record = self._hitl.resolve_ask_pending(
                 session_key,
                 agent_id=agent_id,
@@ -802,6 +1073,17 @@ class GlobalProcessor:
             media_backend=media_backend,
             locale=locale,
         )
+        if self._is_direct_zdx_agent(agent_row):
+            async for event in self._iter_direct_zdx_events(
+                agent_id=agent_id,
+                thread_id=thread_id,
+                user_id=user_id,
+                content=content,
+                locale=locale,
+                title_source=msg.text,
+            ):
+                yield event
+            return
         model_ref = self._resolve_harness_model(
             agent_id,
             thread_id,
@@ -1003,6 +1285,24 @@ class GlobalProcessor:
                 channel_channel_id=msg.channel_id or None,
                 channel_metadata=im_meta,
             )
+
+        if self._is_direct_zdx_agent(agent_row):
+            content = await build_content_from_message(
+                msg,
+                media_backend=media_backend_for_agent(self._agent_manager, agent_id),
+                locale=locale,
+            )
+            async for chunk in self._iter_direct_zdx_chunks(
+                agent_id=agent_id,
+                thread_id=thread_id,
+                user_id=user_id,
+                content=content,
+                locale=locale,
+                title_source=msg.text,
+                trajectory_enabled=traj_on,
+            ):
+                yield chunk
+            return
 
         request = await self._build_dashboard_request(
             msg,

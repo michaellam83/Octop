@@ -15,6 +15,19 @@ from octop.infra.agents.providers.opencode_session import (
 )
 from octop.infra.agents.providers.reasoning import reasoning_capability
 
+
+def is_managed_only_provider(row: Any) -> bool:
+    """Return whether an explicitly managed ZDX row stays out of normal routing.
+
+    An administrator may intentionally create a normal OpenAI-compatible
+    provider pointing at the ZDX endpoint for ordinary experts.  The endpoint
+    URL alone therefore cannot identify the per-user managed-agent route.
+    """
+    name = str(getattr(row, "name", "")).strip().lower()
+    kind = str(getattr(row, "kind", "")).strip().lower()
+    return name == "tonglian-zdx" or kind == "tonglian_zdx"
+
+
 if TYPE_CHECKING:
     from octop.infra.db.repos.agents import AgentRow
     from octop.infra.db.repos.providers import ProviderRepo
@@ -114,6 +127,8 @@ class ProviderStore:
     def iter_usable_rows(self) -> Iterator[Any]:
         """Yield enabled DB providers that have credentials and at least one enabled model."""
         for row in self._provider_repo.list_all():
+            if is_managed_only_provider(row):
+                continue
             if not row.enabled:
                 continue
             if not row.base_url or not row.api_key:
@@ -185,7 +200,7 @@ class ProviderStore:
             return False
         provider_name, _, model_id = ref.partition("/")
         row = self._provider_repo.get_by_name(provider_name)
-        if row is None:
+        if row is None or is_managed_only_provider(row):
             return False
         for model in row.get_models():
             if model.get("id") == model_id and is_chat_eligible_model(
@@ -243,7 +258,13 @@ class ProviderStore:
         if not provider_name or not model_id:
             return False
         row = self._provider_repo.get_by_name(provider_name)
-        if row is None or not row.enabled or not row.api_key or not row.base_url:
+        if (
+            row is None
+            or is_managed_only_provider(row)
+            or not row.enabled
+            or not row.api_key
+            or not row.base_url
+        ):
             return False
         for model in row.get_models():
             if model.get("id") != model_id:
@@ -307,4 +328,5 @@ __all__ = [
     "ProviderStore",
     "clear_stale_pins_for_provider",
     "enabled_model_refs",
+    "is_managed_only_provider",
 ]

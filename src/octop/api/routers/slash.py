@@ -14,13 +14,16 @@ router = APIRouter()
 
 class SlashCommandOut(BaseModel):
     name: str = Field(..., description="Primary command name (without slash).")
-    command: str = Field(..., description="Display form, e.g. `/help` or `/model <name>`.")
+    command: str = Field(..., description="Wire command, e.g. `/help` or `/model`.")
     aliases: list[str] = Field(default_factory=list)
     label_en: str = ""
     label_zh: str = ""
     description_en: str = ""
     description_zh: str = ""
-    usage: str = ""
+    usage: str = Field(
+        "",
+        description="Display usage hint, which may include optional or required arguments.",
+    )
     icon: str = Field(..., description="Lucide icon name for the dashboard composer.")
     tone: str = Field(..., description="UI color tone key (emerald, violet, …).")
     category: str = Field(
@@ -56,7 +59,7 @@ async def list_slash_commands(
     commands = [
         SlashCommandOut(
             name=spec.name,
-            command=spec.usage or spec.command,
+            command=spec.command,
             aliases=list(spec.aliases),
             label_en=spec.label_en,
             label_zh=spec.label_zh,

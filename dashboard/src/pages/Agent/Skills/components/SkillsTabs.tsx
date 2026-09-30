@@ -9,7 +9,7 @@
  * an explicit `agentId` so callers decide which agent's skills to show.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Empty } from "antd";
 import { Blocks, Package, Sparkles, Store } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -23,6 +23,7 @@ import { useSkills } from "../useSkills";
 import styles from "../index.module.less";
 import { useCurrentUser } from "../../../../hooks/useCurrentUser";
 import { userCanAny, PERM } from "../../../../utils/permissions";
+import { useAgent } from "../../../../context/AgentContext";
 
 type SkillsTab = "custom" | "builtin" | "skillhub" | "packages";
 
@@ -41,9 +42,21 @@ interface SkillsTabsProps {
 export default function SkillsTabs({ agentId }: SkillsTabsProps) {
   const { t } = useTranslation();
   const currentUser = useCurrentUser();
-  // Hide the skill-packages tab for users without the `skill_packages` permission.
-  const canSkillPackages = userCanAny(currentUser, PERM.skillPackages);
+  const { agents } = useAgent();
+  const agent = useMemo(
+    () => agents.find((row) => row.agent_id === agentId) ?? null,
+    [agents, agentId],
+  );
+  // Skill packages are a Harness capability and are not available to direct-model agents.
+  const supportsSkills = agent?.managed_capabilities?.supports_skills !== false;
+  const canSkillPackages =
+    userCanAny(currentUser, PERM.skillPackages) && supportsSkills;
   const [activeTab, setActiveTab] = useState<SkillsTab>("custom");
+  useEffect(() => {
+    if (!canSkillPackages && activeTab === "packages") {
+      setActiveTab("custom");
+    }
+  }, [activeTab, canSkillPackages]);
   const tabs = useMemo(
     () =>
       SKILL_TABS.filter((tab) => tab.key !== "packages" || canSkillPackages),

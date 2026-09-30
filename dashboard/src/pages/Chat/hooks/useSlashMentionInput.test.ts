@@ -20,6 +20,22 @@ const stopCommand: SlashCommandSpec = {
   client_action: "cancel_stream",
 };
 
+const optionalSkillsCommand: SlashCommandSpec = {
+  name: "skills",
+  command: "/skills",
+  aliases: [],
+  label_en: "Skills",
+  label_zh: "技能",
+  description_en: "List skills",
+  description_zh: "列出技能",
+  usage: "/skills [list]",
+  icon: "Sparkles",
+  tone: "amber",
+  category: "system",
+  origins: ["ui"],
+  client_action: "none",
+};
+
 function skill(over: Partial<SkillSpec> = {}): SkillSpec {
   return {
     slug: "web-search",
@@ -66,6 +82,35 @@ describe("useSlashMentionInput skills", () => {
     expect(skillItem?.label).toBe("Web Search");
     expect(skillItem?.spec.usage).toBe("✦ Web Search <task>");
     expect(skillItem?.spec.category).toBe("skills");
+  });
+
+  it("sends the command instead of its optional-argument usage hint", () => {
+    const onSend = vi.fn();
+    const { result } = renderHook(() =>
+      useSlashMentionInput({
+        text: "",
+        setText: vi.fn(),
+        textareaRef: { current: null },
+        slashCommands: [optionalSkillsCommand],
+        labelFor: (spec) => spec.label_en,
+        locale: "en",
+        availableExperts: [],
+        selectedConnectors: [],
+        onSend,
+        onNewChat: vi.fn(),
+        onCancel: vi.fn(),
+        isStreaming: false,
+        onSubmitRef: { current: vi.fn() },
+      }),
+    );
+
+    const item = result.current.slashMenuItems[0];
+    expect(item.command).toBe("/skills");
+    expect(item.displayCommand).toBe("/skills [list]");
+
+    act(() => result.current.handleTextChange(""));
+    act(() => result.current.handleSlashSelect(item.command));
+    expect(onSend).toHaveBeenCalledWith("/skills");
   });
 });
 

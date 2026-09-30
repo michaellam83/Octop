@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING, Any, cast
 
 from harness_agent.backends.workspace import BackendWorkspace
 
-from octop.api.common.agent import require_agent_owner_row, require_agent_row
+from octop.api.common.agent import (
+    assert_agent_capability,
+    require_agent_owner_row,
+    require_agent_row,
+)
 from octop.infra.errors import ErrorCode, OctopError
 
 if TYPE_CHECKING:
@@ -53,6 +57,7 @@ async def require_running_workspace(
     """
     checker = require_agent_owner_row if owner_only else require_agent_row
     row = checker(agent_id, user=user, as_user=as_user, server=server)
+    assert_agent_capability(row, "supports_workspace")
     try:
         return require_running_agent(server, agent_id).workspace
     except OctopError as exc:

@@ -40,15 +40,20 @@ async def build_runtime_ctx(cmd: SlashCommand, ctx: SlashCtx) -> RuntimeSlashCtx
 
         cancel_stream = _cancel
 
-        async def _list_skills() -> list[dict[str, Any]]:
-            from octop.infra.utils.locale import normalize_locale
+        from octop.infra.agents.managed_runtime import is_direct_model_agent
 
-            return await am.list_skill_summaries(
-                ctx.agent_id,
-                locale=normalize_locale(ctx.locale),
-            )
+        agent_row = am.get_row(ctx.agent_id)
+        if not is_direct_model_agent(agent_row):
 
-        list_skills = _list_skills
+            async def _list_skills() -> list[dict[str, Any]]:
+                from octop.infra.utils.locale import normalize_locale
+
+                return await am.list_skill_summaries(
+                    ctx.agent_id,
+                    locale=normalize_locale(ctx.locale),
+                )
+
+            list_skills = _list_skills
 
         def _get_thread_model(agent_id: str, tid: str) -> str | None:
             return am.get_thread_model(agent_id, tid)

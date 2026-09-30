@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from octop.infra.agents.managed_runtime import capabilities_for_row
 from octop.infra.errors import ErrorCode, OctopError
 
 
@@ -77,3 +78,12 @@ def require_agent_owner_row(
 def assert_agent_access(server: Any, agent_id: str, user: Any) -> None:
     """Ensure agent exists and is accessible to the current user."""
     require_agent_row(agent_id, user=user, as_user=None, server=server)
+
+
+def assert_agent_capability(row: Any, capability: str) -> None:
+    """Reject an operation that the agent runtime cannot execute."""
+    if not bool(getattr(capabilities_for_row(row), capability, True)):
+        raise OctopError(
+            ErrorCode.FORBIDDEN,
+            f"agent runtime does not support {capability}",
+        )

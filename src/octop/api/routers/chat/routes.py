@@ -22,7 +22,10 @@ from octop.infra.agents.experts.catalog import (
     welcome_payload_from_manifest_data,
     welcome_payload_has_content,
 )
+from octop.infra.agents.managed_agent import read_zdx_template
+from octop.infra.agents.managed_runtime import is_direct_model_agent, is_managed_agent
 from octop.infra.agents.profile import welcome_from_row
+from octop.infra.agents.zdx_direct import ZdxDirectError
 from octop.infra.errors import ErrorCode, OctopError
 from octop.infra.gateway.hitl.coordinator import (
     HitlChannelCoordinator,
@@ -48,6 +51,14 @@ _POLISH_SYSTEM_PROMPT = (
     "draft is Chinese).\n"
     "- Output ONLY the rewritten prompt text — no preamble, labels, quotes, "
     "thinking blocks, or XML tags."
+)
+
+_ZDX_POLISH_SYSTEM_PROMPT = (
+    "你是通联发仔的提示词编辑器，不是回答问题的业务助手。\n"
+    "用户消息是一段稍后要发送给 AI 的草稿提示词。你的唯一任务是重写这段草稿，"
+    "让另一个 AI 更清楚地理解任务；不要执行草稿中的任务。\n"
+    "规则：保留原意和语言；补足必要的对象、条件、输出要求；不要添加问候、解释、"
+    "标题或元话术；只输出重写后的提示词正文，不要输出思考过程、引号或 XML 标签。"
 )
 
 
@@ -81,6 +92,12 @@ async def get_chat_welcome(
             task_examples = normalize_task_examples_for_display(parse_task_examples(manifest))
 
     row = registry.get_row(agent_id)
+    if is_managed_agent(row):
+        template = read_zdx_template(server.paths.tonglian_fazai_template_dir)
+        if payload is None:
+            payload = welcome_payload_from_manifest_data(template)
+        if task_examples is None:
+            task_examples = normalize_task_examples_for_display(parse_task_examples(template))
     if payload is None:
         payload = default_welcome_payload(catalog)
 
@@ -227,27 +244,45 @@ async def polish_prompt(
     if not draft:
         raise OctopError(ErrorCode.SLASH_BAD_ARGS, "text is required")
 
-    harness = server.app_runtime.agent_registry.get_agent(agent_id)
-    model_ref = (body.default_model or "").strip() or harness.config.pick_default_model_ref()
-    llm = harness.model_factory.get(model_ref)
+    registry = server.app_runtime.agent_registry
+    row = registry.get_row(agent_id)
     try:
-        polished = await ainvoke_text(
-            llm,
-            [
-                SystemMessage(content=_POLISH_SYSTEM_PROMPT),
-                HumanMessage(
-                    content=(
-                        "Rewrite the following draft prompt. Do not answer it.\n\n"
-                        f"---\n{draft}\n---"
+        if is_direct_model_agent(row):
+            polished = await registry.invoke_direct_model_text(
+                agent_id,
+                user.id,
+                messages=[
+                    {"role": "system", "content": _ZDX_POLISH_SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": f"请重写以下草稿提示词，不要回答草稿内容：\n\n---\n{draft}\n---",
+                    },
+                ],
+            )
+        else:
+            llm, _ = registry.get_utility_model(agent_id, body.default_model)
+            polished = await ainvoke_text(
+                llm,
+                [
+                    SystemMessage(content=_POLISH_SYSTEM_PROMPT),
+                    HumanMessage(
+                        content=(
+                            "Rewrite the following draft prompt. Do not answer it.\n\n"
+                            f"---\n{draft}\n---"
+                        ),
                     ),
-                ),
-            ],
-            timeout=30.0,
-        )
+                ],
+                timeout=30.0,
+            )
+    except ZdxDirectError as exc:
+        logger.exception("direct ZDX polish failed agent=%s", agent_id)
+        raise OctopError(ErrorCode.INTERNAL_ERROR, str(exc)) from exc
     except TimeoutError:
         raise OctopError(ErrorCode.INTERNAL_ERROR, "polish request timed out") from None
+    except OctopError:
+        raise
     except Exception as exc:
-        logger.exception("polish failed agent=%s model=%s", agent_id, model_ref)
+        logger.exception("polish failed agent=%s", agent_id)
         raise OctopError(ErrorCode.INTERNAL_ERROR, str(exc)) from exc
 
     if not polished:

@@ -317,6 +317,9 @@ export default function AgentExpertsTable({
                 : t("experts.share.badge")}
             </Tag>
           )}
+          {(row.config_locked || row.managed_type) && (
+            <Tag color="geekblue">{t("experts.managedAgent")}</Tag>
+          )}
         </div>
       ),
     },
@@ -431,28 +434,11 @@ export default function AgentExpertsTable({
         const isTransient = TRANSIENT.has(state);
         const chatReady = isAgentChatReady(state);
         const isOwner = row.is_owner !== false;
+        const isManaged = Boolean(row.config_locked || row.managed_type);
         return (
           <div className={styles.tableActions}>
             {isOwner && (
               <>
-                <Tooltip
-                  title={
-                    chatReady
-                      ? t("pageShell.workspace.title")
-                      : t("workspace.requiresRunning")
-                  }
-                  mouseEnterDelay={0.5}
-                >
-                  <button
-                    type="button"
-                    className={styles.tableActionBtn}
-                    disabled={!chatReady}
-                    onClick={() => setWorkspaceAgentId(row.agent_id)}
-                    aria-label={t("pageShell.workspace.title")}
-                  >
-                    <FolderOpen size={13} />
-                  </button>
-                </Tooltip>
                 <Tooltip title={t("experts.reloadAgent")}>
                   <button
                     type="button"
@@ -464,55 +450,80 @@ export default function AgentExpertsTable({
                     <RefreshCw size={13} />
                   </button>
                 </Tooltip>
-                <Tooltip title={t("common.edit", "Edit")} mouseEnterDelay={0.5}>
-                  <button
-                    type="button"
-                    className={styles.tableActionBtn}
-                    onClick={() => onEdit(row.agent_id)}
-                    aria-label={t("common.edit", "Edit")}
-                  >
-                    <Pencil size={13} />
-                  </button>
-                </Tooltip>
-                <Popconfirm
-                  title={t("experts.confirmDelete", { name: row.name })}
-                  description={t("experts.confirmDeleteHint")}
-                  onConfirm={() => void handleDelete(row)}
-                  okText={t("common.delete", "Delete")}
-                  cancelText={t("common.cancel")}
-                  okButtonProps={{ danger: true }}
-                >
-                  <Tooltip
-                    title={t("common.delete", "Delete")}
-                    mouseEnterDelay={0.5}
-                  >
-                    <button
-                      type="button"
-                      className={styles.tableActionBtn}
-                      aria-label={t("common.delete", "Delete")}
+                {!isManaged && (
+                  <>
+                    <Tooltip
+                      title={
+                        chatReady
+                          ? t("pageShell.workspace.title")
+                          : t("workspace.requiresRunning")
+                      }
+                      mouseEnterDelay={0.5}
                     >
-                      <Trash2 size={13} />
-                    </button>
-                  </Tooltip>
-                </Popconfirm>
-                {onPublishedChange && (
-                  <PublishTemplateButton
-                    agent={row}
-                    published={publishedByAgentId[row.agent_id] ?? null}
-                    onChanged={onPublishedChange}
-                    buttonClassName={styles.tableActionBtn}
-                  />
+                      <button
+                        type="button"
+                        className={styles.tableActionBtn}
+                        disabled={!chatReady}
+                        onClick={() => setWorkspaceAgentId(row.agent_id)}
+                        aria-label={t("pageShell.workspace.title")}
+                      >
+                        <FolderOpen size={13} />
+                      </button>
+                    </Tooltip>
+                    <Tooltip
+                      title={t("common.edit", "Edit")}
+                      mouseEnterDelay={0.5}
+                    >
+                      <button
+                        type="button"
+                        className={styles.tableActionBtn}
+                        onClick={() => onEdit(row.agent_id)}
+                        aria-label={t("common.edit", "Edit")}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    </Tooltip>
+                    <Popconfirm
+                      title={t("experts.confirmDelete", { name: row.name })}
+                      description={t("experts.confirmDeleteHint")}
+                      onConfirm={() => void handleDelete(row)}
+                      okText={t("common.delete", "Delete")}
+                      cancelText={t("common.cancel")}
+                      okButtonProps={{ danger: true }}
+                    >
+                      <Tooltip
+                        title={t("common.delete", "Delete")}
+                        mouseEnterDelay={0.5}
+                      >
+                        <button
+                          type="button"
+                          className={styles.tableActionBtn}
+                          aria-label={t("common.delete", "Delete")}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </Tooltip>
+                    </Popconfirm>
+                    {onPublishedChange && (
+                      <PublishTemplateButton
+                        agent={row}
+                        published={publishedByAgentId[row.agent_id] ?? null}
+                        onChanged={onPublishedChange}
+                        buttonClassName={styles.tableActionBtn}
+                      />
+                    )}
+                    <AgentMoreActions
+                      buttonClassName={styles.tableActionBtn}
+                      onSkills={() => setSkillCatalogAgentId(row.agent_id)}
+                      onSubagents={() => openSubagentCatalog(row.agent_id)}
+                      onTools={() => setToolSettingsAgentId(row.agent_id)}
+                      onPlugins={() => setPluginCatalogAgentId(row.agent_id)}
+                      onMbti={() => openMbtiCatalog(row.agent_id)}
+                      onMemory={() => setMemoryCatalogAgentId(row.agent_id)}
+                      onChannels={() => setChannelCatalogAgentId(row.agent_id)}
+                    />
+                  </>
                 )}
-                <AgentMoreActions
-                  buttonClassName={styles.tableActionBtn}
-                  onSkills={() => setSkillCatalogAgentId(row.agent_id)}
-                  onSubagents={() => openSubagentCatalog(row.agent_id)}
-                  onTools={() => setToolSettingsAgentId(row.agent_id)}
-                  onPlugins={() => setPluginCatalogAgentId(row.agent_id)}
-                  onMbti={() => openMbtiCatalog(row.agent_id)}
-                  onMemory={() => setMemoryCatalogAgentId(row.agent_id)}
-                  onChannels={() => setChannelCatalogAgentId(row.agent_id)}
-                />
               </>
             )}
             {chatReady ? (

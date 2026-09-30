@@ -556,6 +556,24 @@ async def test_list_subagent_summaries_delegates_to_harness(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio
+async def test_direct_managed_agent_has_no_harness_subagent_catalog(tmp_path: Path) -> None:
+    """Direct managed agents expose no Harness subagent catalog."""
+    services = _make_services(tmp_path)
+    fake_hm = _make_fake_hm()
+    registry = _make_registry(services, fake_hm=fake_hm)
+    agent_id = "DIRECTSUB1"
+    services.repos.agent_repo.create(
+        agent_id=agent_id,
+        user_id=None,
+        name="Tonglian Fazai",
+        managed_type="tonglian_fazai",
+    )
+
+    assert await registry.list_subagent_summaries(agent_id) == []
+    fake_hm.get_agent.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_list_subagent_summaries_fills_color_from_frontmatter(tmp_path: Path) -> None:
     """When harness omits color, Octop copies it from workspace frontmatter."""
     services = _make_services(tmp_path)

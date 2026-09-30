@@ -1,6 +1,6 @@
 {
   "app": {
-    "pageTitle": "Octop - 懂你、帮你、陪你成长的智能伙伴"
+    "pageTitle": "通联AI"
   },
   "layout": {
     "collapsePanel": "收起面板",
@@ -227,6 +227,7 @@
     "security": "安全防护",
     "knowledgeBases": "知识库",
     "adminPlugins": "插件",
+    "adminManagedExperts": "托管模板",
     "skillPackages": "技能包",
     "remoteAndroid": "远程手机",
     "records": "任务",
@@ -723,6 +724,7 @@
     "mbtiViewDetail": "点击查看人格说明",
     "agentId": "专家 ID",
     "copyAgentId": "点击复制专家 ID",
+    "managedAgent": "系统托管",
     "table": {
       "name": "名称",
       "agentId": "专家 ID",
@@ -2945,6 +2947,7 @@
     "testFailedSimple": "测试失败",
     "testPingHint": "使用已保存配置发送一次 ping。",
     "testDraftNeedModel": "请至少添加或选择一个模型后再测试。",
+    "providerNeedModel": "请至少添加一个已启用的聊天模型后再保存提供商。",
     "codexOAuthLogin": "使用 ChatGPT 登录",
     "codexOAuthHint": "通过 ChatGPT 订阅 OAuth 登录，无需手动填写 API Key。登录成功后会自动创建 openai-codex provider。",
     "codexOAuthSuccess": "ChatGPT 登录成功，模型 provider 已配置。",
@@ -4837,6 +4840,7 @@
     "statusDisabled": "已禁用",
     "ssoBadge": "单点登录",
     "passwordBadge": "密码",
+    "zdxConfigured": "已配置智多星",
     "tabLocal": "内置用户",
     "tabFeishu": "飞书登录",
     "tabWecom": "企微登录",
@@ -4857,6 +4861,22 @@
     "createSectionPolicy": "资源使用策略",
     "policyWorkspaceRoot": "允许的存储根目录",
     "policyWorkspaceRootHint": "限制该用户创建专家时「{{localShell}}」/「{{filesystem}}」的根目录。关闭表示不额外限制。",
+    "zdxConfigure": "配置智多星凭据",
+    "zdxModalTitle": "配置 {{username}} 的智多星凭据",
+    "zdxCredentialHint": "API Key 会加密保存，之后不会再次回显。",
+    "zdxApiKey": "智多星 API Key",
+    "zdxApiKeyRequired": "请输入智多星 API Key",
+    "zdxApiKeyKeepHint": "再次输入以替换当前密钥",
+    "zdxUserid": "OA 用户名",
+    "zdxUseridHint": "填写与智多星绑定的真实 OA 用户名。",
+    "zdxUseridRequired": "请输入 OA 用户名",
+    "zdxSave": "保存凭据",
+    "zdxClear": "清除凭据",
+    "zdxLoadFailed": "加载智多星凭据状态失败",
+    "zdxSaveSuccess": "智多星凭据已保存",
+    "zdxSaveFailed": "保存智多星凭据失败",
+    "zdxClearSuccess": "智多星凭据已清除",
+    "zdxClearFailed": "清除智多星凭据失败",
     "policyWorkspaceRootRequired": "请选择允许的存储根目录",
     "policyWorkspaceRootContainerHint": "容器环境下不可设置——容器文件系统本身已是隔离边界，创建专家时默认使用 `/`。",
     "policyTokenQuota": "Token 使用上限",
@@ -5495,6 +5515,10 @@
       "title": "插件管理",
       "subtitle": "安装并管理服务器插件；各 Agent 的启用状态在「个性化 → 插件」中配置"
     },
+    "managedExperts": {
+      "title": "托管专家模板",
+      "subtitle": "编辑并发布通联发仔默认模板，同步到所有用户"
+    },
     "adminUpdates": {
       "title": "应用更新",
       "subtitle": "检查版本与系统升级"
@@ -5515,6 +5539,37 @@
       "title": "远程手机",
       "subtitle": "查看并控制已连接的手机或模拟器"
     }
+  },
+  "managedExperts": {
+    "warning": "保存会更新系统模板。发布后会同步所有用户的通联发仔，并重载正在运行的实例；用户自己的智多星密钥不会被修改。",
+    "version": "当前模板版本：{{version}}",
+    "labelZh": "中文名称",
+    "labelEn": "英文名称",
+    "descriptionZh": "中文描述",
+    "descriptionEn": "英文描述",
+    "welcomeZh": "中文欢迎语",
+    "welcomeEn": "英文欢迎语",
+    "soul": "系统提示词（SOUL.md）",
+    "quickPrompts": "快捷预设",
+    "quickPrompt": "快捷预设",
+    "addQuickPrompt": "添加快捷预设",
+    "removeQuickPrompt": "删除快捷预设",
+    "promptTitleZh": "中文标题",
+    "promptTitleEn": "英文标题",
+    "promptDescriptionZh": "中文说明",
+    "promptDescriptionEn": "英文说明",
+    "promptZh": "中文提示词",
+    "promptEn": "英文提示词",
+    "taskExamples": "任务预设",
+    "taskExamplesZh": "中文任务预设",
+    "taskExamplesEn": "英文任务预设",
+    "builtinSkills": "内置技能",
+    "marketSkills": "已安装的市场技能包",
+    "noMarketSkills": "当前还没有已安装的技能包，请先到“技能包”中导入市场技能。",
+    "save": "保存模板",
+    "publish": "发布到所有用户",
+    "saved": "模板已保存",
+    "published": "已同步 {{updated}} 个用户，已重载 {{reloaded}} 个运行中的专家，重载失败 {{reloadFailed}} 个。"
   },
   "remoteAndroid": {
     "refresh": "刷新",

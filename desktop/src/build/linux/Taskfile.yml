@@ -11,9 +11,11 @@ tasks:
       - task: common:build:frontend
       - task: common:generate:icons
     cmds:
-      - go build {{.BUILD_FLAGS}} -o {{.BIN_DIR}}/{{.APP_NAME}}
+      - go build {{.BUILD_FLAGS}} -ldflags="{{.LD_FLAGS}}" -o {{.BIN_DIR}}/{{.APP_NAME}}
     vars:
-      BUILD_FLAGS: '{{if eq .PRODUCTION "true"}}-tags production -trimpath -buildvcs=false -ldflags="-w -s"{{else}}-buildvcs=false -gcflags=all="-l"{{end}}'
+      BUILD_FLAGS: '{{if eq .PRODUCTION "true"}}-tags production -trimpath -buildvcs=false{{else}}-buildvcs=false -gcflags=all="-l"{{end}}'
+      LD_FLAGS: '{{if eq .PRODUCTION "true"}}-w -s{{end}}{{if .REMOTE_URL}} -X main.defaultRemoteURL={{.REMOTE_URL}}{{end}}'
+      REMOTE_URL: '{{.REMOTE_URL | default ""}}'
     env:
       GOOS: linux
       CGO_ENABLED: 1
@@ -29,6 +31,7 @@ tasks:
       - task: build
         vars:
           PRODUCTION: "true"
+          REMOTE_URL: "{{.REMOTE_URL}}"
       - rm -f {{.ARCHIVE}} bundled/portable.zip
       - tar -C {{.BIN_DIR}} -czf {{.ARCHIVE}} {{.APP_NAME}}
     vars:
@@ -36,6 +39,7 @@ tasks:
       VERSION: '{{.VERSION | default "dev"}}'
       PORTABLE_ZIP: '{{.PORTABLE_ZIP | default (printf "../portable/release/Octop-portable-linux-%s-%s.zip" .ARCH .VERSION)}}'
       ARCHIVE: '{{.BIN_DIR}}/{{.APP_NAME}}-desktop-linux-{{.ARCH}}-{{.VERSION}}.tar.gz'
+      REMOTE_URL: '{{.REMOTE_URL | default ""}}'
 
   stage:portable:
     summary: Copies the matching green zip for go:embed

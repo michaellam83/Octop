@@ -212,9 +212,9 @@ curl -fsSL https://finnie-1258344699.cos.ap-guangzhou.myqcloud.com/octop/install
 
 | 平台 | 制品 |
 |------|------|
-| Windows | `Octop-desktop-windows-amd64-<version>.exe`（64 位）/ `Octop-desktop-windows-arm64-<version>.exe`（ARM64）— NSIS 安装程序 |
-| macOS | `Octop-desktop-darwin-arm64-<version>.dmg`（Apple 芯片）/ `Octop-desktop-darwin-amd64-<version>.dmg`（Intel） |
-| Linux | `Octop-desktop-linux-amd64-<version>.tar.gz` / `Octop-desktop-linux-arm64-<version>.tar.gz` |
+| Windows | `AllinpayAI-desktop-windows-amd64-<version>.exe`（64 位）/ `AllinpayAI-desktop-windows-arm64-<version>.exe`（ARM64）— NSIS 安装程序 |
+| macOS | `AllinpayAI-desktop-darwin-arm64-<version>.dmg`（Apple 芯片）/ `AllinpayAI-desktop-darwin-amd64-<version>.dmg`（Intel） |
+| Linux | `AllinpayAI-desktop-linux-amd64-<version>.tar.gz` / `AllinpayAI-desktop-linux-arm64-<version>.tar.gz` |
 | 飞牛 NAS（FnOS） | `Octop-fnos-docker-<version>.fpk`（依赖 Docker）/ `Octop-fnos-native-<version>.fpk`（无需 Docker）— 通过应用中心安装 |
 
 桌面客户端说明见 [desktop/README.md](desktop/README.md)，飞牛打包指南见 [fnos/README.md](fnos/README.md)。

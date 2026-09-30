@@ -130,3 +130,44 @@ async def test_iter_turn_chunks_persists_partial_when_cancelled() -> None:
     texts = [_wire_text(item) for item in appended[0]]
     assert any("continue this" in text for text in texts)
     assert "partial answer" in texts
+
+
+@pytest.mark.asyncio
+async def test_direct_zdx_chunks_persist_error_history() -> None:
+    processor = GlobalProcessor(
+        agent_manager=MagicMock(),
+        thread_registry=MagicMock(),
+        audit_repo=MagicMock(),
+        agent_repo=MagicMock(),
+        user_repo=MagicMock(),
+        connector_repo=MagicMock(),
+        dispatcher=SlashDispatcher(),
+        usage_repo=None,
+        gateway=None,
+        thread_message_repo=MagicMock(),
+    )
+    processor._record_stream_error = AsyncMock()
+
+    async def fail(**_kwargs: object) -> AsyncIterator[str]:
+        raise RuntimeError("stream failed")
+        yield "unreachable"
+
+    processor._direct_zdx_content = fail  # type: ignore[method-assign]
+    processor._persist_incomplete_turn = AsyncMock()
+
+    chunks = [
+        chunk
+        async for chunk in processor._iter_direct_zdx_chunks(
+            agent_id="agent-1",
+            thread_id="thread-1",
+            user_id=1,
+            content="联网查询",
+            locale="zh",
+            title_source="联网查询",
+            trajectory_enabled=False,
+        )
+    ]
+
+    assert chunks[-1] == {"type": "done"}
+    processor._persist_incomplete_turn.assert_awaited_once()
+    assert processor._persist_incomplete_turn.await_args.kwargs["title_source"] == "联网查询"

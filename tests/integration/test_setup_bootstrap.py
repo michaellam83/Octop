@@ -33,10 +33,21 @@ async def test_bootstrap_creates_default_main_agent(patched_app_client: Any) -> 
     r = await c.get("/api/agents", headers=auth)
     assert r.status_code == 200
     agents = r.json()
-    assert len(agents) == 1
-    assert agents[0]["agent_id"] == "main"
-    assert agents[0]["name"] == "小通 · 通用助手"
-    assert agents[0]["state"] in {"created", "idle", "stopped", "failed", "running", "unknown"}
+    assert len(agents) == 2
+    main = next(agent for agent in agents if agent["agent_id"] == "main")
+    managed = next(agent for agent in agents if agent["managed_type"] == "tonglian_fazai")
+    assert main["name"] == "小通 · 通用助手"
+    assert main["state"] in {"created", "idle", "stopped", "failed", "running", "unknown"}
+    assert managed["config_locked"] is True
+
+    patch = await c.patch(
+        f"/api/agents/{managed['agent_id']}",
+        headers=auth,
+        json={"name": "改名"},
+    )
+    assert patch.status_code == 403
+    delete = await c.delete(f"/api/agents/{managed['agent_id']}", headers=auth)
+    assert delete.status_code == 403
 
 
 async def test_main_not_created_until_finish(patched_app_client: Any) -> None:
@@ -54,7 +65,8 @@ async def test_main_not_created_until_finish(patched_app_client: Any) -> None:
     auth = {"Authorization": f"Bearer {admin['access_token']}"}
     r = await c.get("/api/agents", headers=auth)
     assert r.status_code == 200
-    assert r.json() == []
+    assert len(r.json()) == 1
+    assert r.json()[0]["managed_type"] == "tonglian_fazai"
 
     finish = await c.post(
         "/api/setup/finish",
@@ -63,8 +75,8 @@ async def test_main_not_created_until_finish(patched_app_client: Any) -> None:
     )
     assert finish.status_code == 200
     r = await c.get("/api/agents", headers=auth)
-    assert len(r.json()) == 1
-    assert r.json()[0]["agent_id"] == "main"
+    assert len(r.json()) == 2
+    assert any(agent["agent_id"] == "main" for agent in r.json())
 
 
 async def test_double_bootstrap_returns_410(patched_app_client: Any) -> None:
@@ -130,7 +142,7 @@ async def test_main_agent_uses_general_assistant_template(patched_app_client: An
     auth = await auth_header(c)
     r = await c.get("/api/agents", headers=auth)
     assert r.status_code == 200
-    agent = r.json()[0]
+    agent = next(item for item in r.json() if item["agent_id"] == "main")
     assert agent["agent_id"] == "main"
     assert agent["name"] == "小通 · 通用助手"
     assert agent.get("template_name") == "general-assistant"

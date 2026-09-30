@@ -70,6 +70,16 @@ class PathLayout:
         return self.root / "published_experts"
 
     @property
+    def managed_templates_dir(self) -> Path:
+        """Administrator-managed templates: ``~/.octop/managed-templates/``."""
+        return self.root / "managed-templates"
+
+    @property
+    def tonglian_fazai_template_dir(self) -> Path:
+        """Persistent Tonglian Fazai template files."""
+        return self.managed_templates_dir / "tonglian-fazai"
+
+    @property
     def skill_packages_dir(self) -> Path:
         """Global skill package content: ``~/.octop/skill-packages/``."""
         return self.root / "skill-packages"
