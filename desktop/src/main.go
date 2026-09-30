@@ -38,6 +38,8 @@ type App struct {
 	bootMu         sync.Mutex
 	booting        bool
 	quitting       bool
+	windowReady    chan struct{}
+	windowReadyOne sync.Once
 
 	trayClickMu    sync.Mutex
 	lastTrayClick  time.Time
@@ -185,6 +187,19 @@ func (a *App) connectionURL() string {
 	return dashboardURL(a.store.get().Port)
 }
 
+func (a *App) markWindowReady() {
+	if a.windowReady == nil {
+		return
+	}
+	a.windowReadyOne.Do(func() { close(a.windowReady) })
+}
+
+func (a *App) waitForWindowReady() {
+	if a.windowReady != nil {
+		<-a.windowReady
+	}
+}
+
 func (a *App) boot() {
 	a.bootMu.Lock()
 	if a.booting {
@@ -241,6 +256,10 @@ func (a *App) showDashboard(base string) {
 	if a.window == nil {
 		return
 	}
+	// WebView2 pumps the Windows message queue while its controller is being
+	// created. Do not enqueue SetURL during that window: Wails can re-enter the
+	// callback before the underlying ICoreWebView2 is initialized.
+	a.waitForWindowReady()
 	a.window.SetURL(base)
 	a.scheduleDragOverlay()
 	s := a.store.get()
@@ -331,8 +350,9 @@ func (a *App) requestQuit() {
 func main() {
 	store := &settingsStore{cur: loadSettings()}
 	api := &App{
-		store: store,
-		sleep: &sleepGuard{},
+		store:       store,
+		sleep:       &sleepGuard{},
+		windowReady: make(chan struct{}),
 	}
 
 	app := application.New(application.Options{
@@ -381,7 +401,10 @@ func main() {
 	app.Event.On("desktop:close", func(_ *application.CustomEvent) {
 		api.hideToTray()
 	})
-	installDragOverlay := func(_ *application.WindowEvent) { api.scheduleDragOverlay() }
+	installDragOverlay := func(_ *application.WindowEvent) {
+		api.markWindowReady()
+		api.scheduleDragOverlay()
+	}
 	win.OnWindowEvent(events.Mac.WebViewDidFinishNavigation, installDragOverlay)
 	win.OnWindowEvent(events.Windows.WebViewNavigationCompleted, installDragOverlay)
 	win.OnWindowEvent(events.Linux.WindowLoadFinished, installDragOverlay)
